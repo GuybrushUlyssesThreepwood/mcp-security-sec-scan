@@ -1,0 +1,24 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Self-test against bundled vulnerable server
+        run: |
+          node test/vulnerable-server.mjs &
+          SRV=$!
+          sleep 1
+          # Must detect the injected issues → CI mode exits 2. We invert to assert detection.
+          if node dist/cli.js http://127.0.0.1:8971/ --active --no-color --ci; then
+            echo "Scanner failed to flag the vulnerable server"; kill $SRV; exit 1
+          else
+            echo "Scanner correctly flagged the vulnerable server"; kill $SRV
+          fi

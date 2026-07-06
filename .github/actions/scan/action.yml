@@ -1,0 +1,34 @@
+name: "mcp-sec-scan"
+description: "Run mcp-sec-scan against a remote MCP server and fail the build on findings."
+inputs:
+  url:
+    description: "MCP server URL (Streamable HTTP)"
+    required: true
+  token:
+    description: "Bearer token for authenticated deep checks"
+    required: false
+    default: ""
+  active:
+    description: "Enable active probes (rate-limit burst)"
+    required: false
+    default: "false"
+  ci:
+    description: "Fail build on findings (exit 2 on PROBLEM, 1 on WARN)"
+    required: false
+    default: "true"
+  report:
+    description: "Path for the Markdown report artifact"
+    required: false
+    default: "mcp-sec-scan-report.md"
+runs:
+  using: "composite"
+  steps:
+    - name: Run mcp-sec-scan
+      shell: bash
+      env:
+        MCP_SEC_SCAN_TOKEN: ${{ inputs.token }}
+      run: |
+        ARGS="${{ inputs.url }} -m ${{ inputs.report }}"
+        [ "${{ inputs.active }}" = "true" ] && ARGS="$ARGS --active"
+        [ "${{ inputs.ci }}" = "true" ] && ARGS="$ARGS --ci"
+        npx --yes mcp-sec-scan@^1 $ARGS

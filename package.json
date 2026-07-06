@@ -1,0 +1,40 @@
+{
+  "name": "mcp-sec-scan",
+  "version": "1.0.0",
+  "description": "Opinionated remote-MCP auth & tenancy security scanner. Checks what a Streamable HTTP MCP server exposes from the outside.",
+  "type": "module",
+  "bin": {
+    "mcp-sec-scan": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "node --test --loader tsx dist-test-loader 2>/dev/null || tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "security",
+    "scanner",
+    "oauth",
+    "multi-tenancy",
+    "audit"
+  ],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
