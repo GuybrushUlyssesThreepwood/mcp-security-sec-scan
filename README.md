@@ -58,16 +58,18 @@ MCP_SEC_SCAN_TOKEN=... mcp-sec-scan https://example.com/mcp   # deep checks with
 
 A full sample report: [`examples/sample-report.md`](examples/sample-report.md).
 
-## Checks (v1.0)
+## Checks (v1.1)
 
 1. TLS enforced (no cleartext HTTP)
 2. Authentication required
-3. Tool listing/use without authentication
-4. OAuth 2.1 metadata & PKCE (S256)
-5. Tool-poisoning heuristic (descriptions)
-6. CORS configuration (wildcard + credentials, origin reflection)
-7. Error verbosity (stack traces / secret leakage)
-8. Rate limiting (burst heuristic, `--active`)
+3. Security headers (HSTS, `X-Content-Type-Options: nosniff`)
+4. Tool listing/use without authentication
+5. OAuth 2.1 metadata & PKCE (S256)
+6. Tool-poisoning heuristic (descriptions)
+7. CORS configuration (wildcard + credentials, origin reflection)
+8. Origin-header validation (DNS-rebinding, Streamable HTTP)
+9. Error verbosity (stack traces / secret leakage)
+10. Rate limiting (burst heuristic, `--active`)
 
 _Backlog: SARIF output, 12+ checks. See issues._
 

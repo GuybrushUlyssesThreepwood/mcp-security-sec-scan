@@ -4,7 +4,7 @@
 
 import type { ProbeResult } from "./types.js";
 
-const SCANNER_VERSION = "1.0.0";
+const SCANNER_VERSION = "1.1.0";
 export const CLIENT_PROTOCOL_VERSION = "2025-06-18";
 
 export function jsonRpc(method: string, params: unknown, id: number | string = 1) {

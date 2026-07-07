@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { toolPoisoning, unauthTools } from "../src/checks/tools.js";
+import { securityHeaders, originValidation } from "../src/checks/transport.js";
 import { toMarkdown, toTerminal, exitCode } from "../src/report.js";
 import { jsonRpc, initializeParams, wellKnown } from "../src/probe.js";
 import { runScan } from "../src/scanner.js";
@@ -80,6 +81,45 @@ test("unauth-tools handles unreachable server gracefully (no throw)", async () =
   const ctx: ScanContext = { url: "http://127.0.0.1:9/mcp", timeoutMs: 400, activeProbes: false };
   const findings = await unauthTools.run(ctx, {});
   assert.equal(findings.length >= 1, true);
+});
+
+test("security-headers warns on missing HSTS + nosniff over https", async () => {
+  const shared: SharedState = {
+    unauthInitialize: { status: 200, ok: true, headers: { "content-type": "application/json" } },
+  };
+  const findings = await securityHeaders.run(baseCtx, shared);
+  assert.equal(findings[0].severity, "warn");
+  assert.match(findings[0].detail, /HSTS/);
+  assert.match(findings[0].detail, /nosniff/);
+});
+
+test("security-headers passes when both headers are present", async () => {
+  const shared: SharedState = {
+    unauthInitialize: {
+      status: 200, ok: true,
+      headers: { "strict-transport-security": "max-age=31536000", "x-content-type-options": "nosniff" },
+    },
+  };
+  const findings = await securityHeaders.run(baseCtx, shared);
+  assert.equal(findings[0].severity, "pass");
+});
+
+test("security-headers ignores HSTS over http, still flags missing nosniff", async () => {
+  const ctx: ScanContext = { url: "http://localhost/mcp", timeoutMs: 1000, activeProbes: false };
+  const shared: SharedState = {
+    unauthInitialize: { status: 200, ok: true, headers: { "content-type": "application/json" } },
+  };
+  const findings = await securityHeaders.run(ctx, shared);
+  assert.equal(findings[0].severity, "warn");
+  assert.doesNotMatch(findings[0].detail, /HSTS/);
+  assert.match(findings[0].detail, /nosniff/);
+});
+
+test("origin-validation handles unreachable server gracefully (no throw)", async () => {
+  const ctx: ScanContext = { url: "http://127.0.0.1:9/mcp", timeoutMs: 400, activeProbes: false };
+  const findings = await originValidation.run(ctx, {});
+  assert.equal(findings.length >= 1, true);
+  assert.equal(findings[0].severity, "info");
 });
 
 test("runScan aggregates a summary without throwing on a dead target", async () => {

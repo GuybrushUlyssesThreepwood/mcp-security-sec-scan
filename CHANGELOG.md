@@ -3,6 +3,16 @@
 All notable changes to `mcp-sec-scan` are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/); this project uses semantic versioning.
 
+## [1.1.0] - 2026-07
+### Added
+- Check: **security headers** — flags missing HSTS (over HTTPS) and `X-Content-Type-Options: nosniff`.
+- Check: **origin-header validation** — sends `initialize` with a foreign `Origin` and flags servers that
+  accept it, per the MCP Streamable HTTP requirement to validate Origin against DNS-rebinding attacks.
+- 4 new unit tests; both checks exercised by the bundled vulnerable-server self-test.
+
+### Changed
+- Check count 8 → 10; version bumped to 1.1.0.
+
 ## [1.0.0] - 2026-08 (planned public release)
 ### Added
 - CLI `mcp-sec-scan <url>` for remote MCP servers (Streamable HTTP).
@@ -16,4 +26,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); this project us
 
 ### Backlog (tracked as issues)
 - SARIF output (GitHub Security tab integration).
-- Expand from 8 to 12+ checks.
+- Expand from 10 to 12+ checks.

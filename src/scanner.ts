@@ -3,7 +3,7 @@
 import { CHECKS } from "./checks/index.js";
 import type { Finding, ScanContext, ScanReport, Severity, SharedState } from "./types.js";
 
-export const SCANNER_VERSION = "1.0.0";
+export const SCANNER_VERSION = "1.1.0";
 
 export async function runScan(ctx: ScanContext): Promise<ScanReport> {
   const shared: SharedState = {};

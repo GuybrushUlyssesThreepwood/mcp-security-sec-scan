@@ -1,9 +1,17 @@
-// Transport-/CORS-Checks: TLS-Erzwingung und CORS-Konfiguration.
+// Transport-/CORS-Checks: TLS-Erzwingung, CORS, Origin-Validierung und Sicherheits-Header.
 
-import type { Check, Finding, ScanContext } from "../types.js";
-import { getUrl } from "../probe.js";
+import type { Check, Finding, ScanContext, SharedState } from "../types.js";
+import { getUrl, postRpc, jsonRpc, initializeParams } from "../probe.js";
 
 const REF = "MCP Security Checklist #15 (T-003)";
+
+function safeProtocol(url: string): string {
+  try {
+    return new URL(url).protocol;
+  } catch {
+    return "";
+  }
+}
 
 export const tlsEnforced: Check = {
   id: "tls-enforced",
@@ -74,6 +82,100 @@ export const corsConfig: Check = {
     return [{
       id: this.id, title: this.title, severity: "info",
       detail: `ACAO gesetzt auf '${acao}'.`,
+      reference: REF,
+    }];
+  },
+};
+
+export const originValidation: Check = {
+  id: "origin-validation",
+  title: "Origin-Header-Validierung (DNS-Rebinding)",
+  async run(ctx: ScanContext): Promise<Finding[]> {
+    // MCP Streamable HTTP: Server MÜSSEN den Origin-Header validieren, um DNS-Rebinding
+    // zu verhindern. Wir senden 'initialize' mit fremdem Origin und prüfen, ob abgewiesen wird.
+    const evilOrigin = "https://dns-rebind.attacker.example";
+    const probe = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), {
+      timeoutMs: ctx.timeoutMs,
+      token: ctx.token,
+      extraHeaders: { origin: evilOrigin },
+    });
+
+    if (probe.error) {
+      return [{
+        id: this.id, title: this.title, severity: "info",
+        detail: `Kein Ergebnis (Netzwerk/Timeout): ${probe.error}`,
+        reference: REF,
+      }];
+    }
+    if (probe.status === 400 || probe.status === 403) {
+      return [{
+        id: this.id, title: this.title, severity: "pass",
+        detail: `Anfrage mit fremdem Origin (${evilOrigin}) abgewiesen (HTTP ${probe.status}).`,
+        reference: REF,
+      }];
+    }
+    if (probe.status === 401) {
+      return [{
+        id: this.id, title: this.title, severity: "info",
+        detail: `Auth wird vor der Origin-Prüfung erzwungen (HTTP 401) — Origin-Validierung ist von außen nicht eindeutig prüfbar.`,
+        remediation: "Sicherstellen, dass der Origin serverseitig gegen eine Allowlist geprüft wird (auch für authentifizierte Anfragen).",
+        reference: REF,
+      }];
+    }
+    if (probe.status >= 200 && probe.status < 300) {
+      return [{
+        id: this.id, title: this.title, severity: "warn",
+        detail: `Server akzeptiert 'initialize' mit fremdem Origin (${evilOrigin}, HTTP ${probe.status}) ohne Abweisung. Die MCP-Streamable-HTTP-Spezifikation verlangt Origin-Validierung gegen DNS-Rebinding — besonders kritisch bei lokal oder im internen Netz erreichbaren Servern.`,
+        remediation: "Origin-Header gegen feste Allowlist prüfen und fremde Origins mit 403 ablehnen; Server nur an benötigte Interfaces binden.",
+        reference: REF,
+      }];
+    }
+    return [{
+      id: this.id, title: this.title, severity: "info",
+      detail: `Unerwarteter Status auf 'initialize' mit fremdem Origin: HTTP ${probe.status}.`,
+      reference: REF,
+    }];
+  },
+};
+
+export const securityHeaders: Check = {
+  id: "security-headers",
+  title: "Sicherheits-Header (HSTS, nosniff)",
+  async run(ctx: ScanContext, shared: SharedState): Promise<Finding[]> {
+    // Wiederverwenden, was 'auth-required' bereits ermittelt hat; sonst selbst einmal proben.
+    let headers = shared.unauthInitialize?.headers;
+    if (!headers) {
+      const probe = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), {
+        timeoutMs: ctx.timeoutMs,
+        token: ctx.token,
+      });
+      shared.unauthInitialize = probe;
+      headers = probe.headers;
+    }
+    if (!headers || Object.keys(headers).length === 0) {
+      return [{
+        id: this.id, title: this.title, severity: "info",
+        detail: "Keine Antwort-Header ermittelbar (Server nicht erreichbar?).",
+        reference: REF,
+      }];
+    }
+
+    const isHttps = safeProtocol(ctx.url) === "https:";
+    const missing: string[] = [];
+    if (isHttps && !headers["strict-transport-security"]) missing.push("Strict-Transport-Security (HSTS)");
+    if (!headers["x-content-type-options"]) missing.push("X-Content-Type-Options: nosniff");
+
+    if (missing.length === 0) {
+      return [{
+        id: this.id, title: this.title, severity: "pass",
+        detail: `Sicherheits-Header vorhanden${isHttps ? " (inkl. HSTS)" : ""}.`,
+        reference: REF,
+      }];
+    }
+    return [{
+      id: this.id, title: this.title, severity: "warn",
+      detail: `Fehlende Sicherheits-Header: ${missing.join(", ")}.`,
+      remediation: "Über HTTPS 'Strict-Transport-Security: max-age=15552000; includeSubDomains' setzen und 'X-Content-Type-Options: nosniff' senden.",
       reference: REF,
     }];
   },
