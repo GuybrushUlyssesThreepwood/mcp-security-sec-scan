@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 
 import { toolPoisoning, unauthTools } from "../src/checks/tools.js";
 import { securityHeaders, originValidation } from "../src/checks/transport.js";
-import { toMarkdown, toTerminal, exitCode } from "../src/report.js";
+import { toMarkdown, toTerminal, toSarif, exitCode } from "../src/report.js";
 import { jsonRpc, initializeParams, wellKnown } from "../src/probe.js";
 import { runScan } from "../src/scanner.js";
 import type { ScanContext, SharedState, ScanReport } from "../src/types.js";
@@ -74,6 +74,32 @@ test("toMarkdown and toTerminal render findings", () => {
   assert.match(md, /add oauth/);
   const term = toTerminal(report, false);
   assert.match(term, /PROBLEM/);
+});
+
+test("toSarif emits valid 2.1.0 shape, maps levels, drops pass/skipped", () => {
+  const report: ScanReport = {
+    target: "https://x/mcp", scannedAt: "2026-01-01T00:00:00Z", scannerVersion: "1.1.0",
+    findings: [
+      { id: "tls-enforced", title: "TLS", severity: "problem", detail: "cleartext", remediation: "use https" },
+      { id: "cors-config", title: "CORS", severity: "warn", detail: "open cors" },
+      { id: "auth-required", title: "Auth", severity: "pass", detail: "ok" },
+      { id: "rate-limiting", title: "Rate", severity: "skipped", detail: "n/a" },
+    ],
+    summary: { pass: 1, info: 0, warn: 1, problem: 1, skipped: 1 },
+  };
+  const sarif = toSarif(report) as any;
+  assert.equal(sarif.version, "2.1.0");
+  const run = sarif.runs[0];
+  assert.equal(run.tool.driver.name, "mcp-sec-scan");
+  assert.equal(run.tool.driver.version, "1.1.0");
+  // pass + skipped dropped → only 2 results, 2 rules.
+  assert.equal(run.results.length, 2);
+  assert.equal(run.tool.driver.rules.length, 2);
+  const tls = run.results.find((r: any) => r.ruleId === "tls-enforced");
+  assert.equal(tls.level, "error");
+  assert.match(tls.message.text, /Remediation: use https/);
+  assert.equal(tls.locations[0].physicalLocation.artifactLocation.uri, "https://x/mcp");
+  assert.equal(run.results.find((r: any) => r.ruleId === "cors-config").level, "warning");
 });
 
 test("unauth-tools handles unreachable server gracefully (no throw)", async () => {

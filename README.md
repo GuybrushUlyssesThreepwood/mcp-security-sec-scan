@@ -40,6 +40,7 @@ MCP_SEC_SCAN_TOKEN=... mcp-sec-scan https://example.com/mcp   # deep checks with
 | `--token <t>` | Bearer token for authenticated deep checks (or `MCP_SEC_SCAN_TOKEN`) |
 | `-m, --markdown <f>` | Write a Markdown report |
 | `--json <f>` | Write the raw JSON report |
+| `--sarif <f>` | Write a SARIF 2.1.0 report (GitHub Code Scanning / Security tab) |
 | `--active` | Enable active probes (small rate-limit burst) |
 | `--timeout <ms>` | Per-request timeout (default 10000) |
 | `--ci` | Exit `2` on any PROBLEM, `1` on any WARN, else `0` |
@@ -71,7 +72,7 @@ A full sample report: [`examples/sample-report.md`](examples/sample-report.md).
 9. Error verbosity (stack traces / secret leakage)
 10. Rate limiting (burst heuristic, `--active`)
 
-_Backlog: SARIF output, 12+ checks. See issues._
+_Backlog: 12+ checks. See issues._
 
 ## GitHub Action
 
@@ -82,6 +83,8 @@ on: [push, pull_request]
 jobs:
   scan:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # required to upload SARIF
     steps:
       - uses: actions/checkout@v4
       - uses: your-org/mcp-sec-scan/.github/actions/scan@v1
@@ -89,7 +92,14 @@ jobs:
           url: ${{ vars.MCP_SERVER_URL }}
           token: ${{ secrets.MCP_TOKEN }}
           ci: 'true'
+      - name: Upload SARIF to the Security tab
+        if: always()   # still upload even when the scan failed the build
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: mcp-sec-scan.sarif
 ```
+
+Findings then show up under **Security → Code scanning**, one alert per check.
 
 ## Scope & limits
 

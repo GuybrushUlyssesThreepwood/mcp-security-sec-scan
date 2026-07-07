@@ -96,6 +96,72 @@ export function toMarkdown(report: ScanReport): string {
   return md.join("\n");
 }
 
+const REPO_URL = "https://github.com/GuybrushUlyssesThreepwood/mcp-sec-scan";
+
+/** SARIF-Schweregrad: problem→error, warn→warning, sonst note. */
+function sarifLevel(sev: Severity): "error" | "warning" | "note" {
+  if (sev === "problem") return "error";
+  if (sev === "warn") return "warning";
+  return "note";
+}
+
+/**
+ * SARIF 2.1.0 für GitHub Code Scanning (Security-Tab). pass/skipped werden
+ * ausgelassen — nur echte Findings (problem/warn/info) werden als Results emittiert.
+ */
+export function toSarif(report: ScanReport): unknown {
+  const emitted = report.findings.filter((f) => f.severity !== "pass" && f.severity !== "skipped");
+
+  // Regeln aus den vorkommenden Check-IDs (dedupliziert).
+  const ruleById = new Map<string, Finding>();
+  for (const f of emitted) if (!ruleById.has(f.id)) ruleById.set(f.id, f);
+  const rules = [...ruleById.values()].map((f) => ({
+    id: f.id,
+    name: f.title,
+    shortDescription: { text: f.title },
+    fullDescription: { text: f.remediation ? `${f.title}. ${f.remediation}` : f.title },
+    helpUri: REPO_URL,
+    help: { text: f.remediation ?? f.detail },
+    defaultConfiguration: { level: sarifLevel(f.severity) },
+    ...(f.reference ? { properties: { reference: f.reference } } : {}),
+  }));
+
+  const results = emitted.map((f) => ({
+    ruleId: f.id,
+    level: sarifLevel(f.severity),
+    message: { text: f.remediation ? `${f.detail}\n\nRemediation: ${f.remediation}` : f.detail },
+    locations: [
+      {
+        physicalLocation: {
+          artifactLocation: { uri: report.target },
+          region: { startLine: 1 },
+        },
+      },
+    ],
+    partialFingerprints: { checkId: f.id },
+  }));
+
+  return {
+    $schema: "https://json.schemastore.org/sarif-2.1.0.json",
+    version: "2.1.0",
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: "mcp-sec-scan",
+            informationUri: REPO_URL,
+            version: report.scannerVersion,
+            rules,
+          },
+        },
+        results,
+        invocations: [{ executionSuccessful: true, endTimeUtc: report.scannedAt }],
+        properties: { target: report.target, summary: report.summary },
+      },
+    ],
+  };
+}
+
 /** Exit-Code: 2 bei mindestens einem Problem, 1 bei nur Warnungen, sonst 0. Für CI-Gates. */
 export function exitCode(report: ScanReport): number {
   if (report.summary.problem > 0) return 2;

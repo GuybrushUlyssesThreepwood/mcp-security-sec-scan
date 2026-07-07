@@ -3,7 +3,7 @@
 
 import { writeFile } from "node:fs/promises";
 import { runScan, SCANNER_VERSION } from "./scanner.js";
-import { toTerminal, toMarkdown, exitCode } from "./report.js";
+import { toTerminal, toMarkdown, toSarif, exitCode } from "./report.js";
 import type { ScanContext } from "./types.js";
 
 interface Args {
@@ -11,6 +11,7 @@ interface Args {
   token?: string;
   markdown?: string;
   json?: string;
+  sarif?: string;
   timeoutMs: number;
   active: boolean;
   noColor: boolean;
@@ -29,6 +30,7 @@ function parseArgs(argv: string[]): Args {
       case "--token": a.token = argv[++i]; break;
       case "--markdown": case "-m": a.markdown = argv[++i]; break;
       case "--json": a.json = argv[++i]; break;
+      case "--sarif": a.sarif = argv[++i]; break;
       case "--timeout": a.timeoutMs = Number(argv[++i]) || 10000; break;
       case "--active": a.active = true; break;
       case "--no-color": a.noColor = true; break;
@@ -52,6 +54,7 @@ OPTIONS
   --token <t>        Bearer token for authenticated deep checks (or env MCP_SEC_SCAN_TOKEN)
   -m, --markdown <f> Write a Markdown report to file <f>
   --json <f>         Write raw JSON report to file <f>
+  --sarif <f>        Write a SARIF 2.1.0 report to file <f> (GitHub Code Scanning)
   --timeout <ms>     Per-request timeout in ms (default 10000)
   --active           Enable active probes (small rate-limit burst)
   --no-color         Disable colored terminal output
@@ -90,6 +93,10 @@ async function main() {
   if (args.json) {
     await writeFile(args.json, JSON.stringify(report, null, 2), "utf8");
     console.log(`JSON report written to ${args.json}`);
+  }
+  if (args.sarif) {
+    await writeFile(args.sarif, JSON.stringify(toSarif(report), null, 2), "utf8");
+    console.log(`SARIF report written to ${args.sarif}`);
   }
 
   if (args.ci) process.exit(exitCode(report));

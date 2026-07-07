@@ -8,7 +8,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); this project us
 - Check: **security headers** — flags missing HSTS (over HTTPS) and `X-Content-Type-Options: nosniff`.
 - Check: **origin-header validation** — sends `initialize` with a foreign `Origin` and flags servers that
   accept it, per the MCP Streamable HTTP requirement to validate Origin against DNS-rebinding attacks.
-- 4 new unit tests; both checks exercised by the bundled vulnerable-server self-test.
+- **SARIF 2.1.0 output** (`--sarif <file>`) for GitHub Code Scanning; the reusable Action emits it by
+  default and the README shows the `upload-sarif` step (results land in the Security tab).
+- 5 new unit tests; new checks exercised by the bundled vulnerable-server self-test.
 
 ### Changed
 - Check count 8 → 10; version bumped to 1.1.0.
@@ -25,5 +27,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); this project us
 - Bundled intentionally-vulnerable test server + CI self-test; unit tests.
 
 ### Backlog (tracked as issues)
-- SARIF output (GitHub Security tab integration).
 - Expand from 10 to 12+ checks.

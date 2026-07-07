@@ -20,6 +20,10 @@ inputs:
     description: "Path for the Markdown report artifact"
     required: false
     default: "mcp-sec-scan-report.md"
+  sarif:
+    description: "Path for a SARIF 2.1.0 report (upload to the Security tab). Empty = skip."
+    required: false
+    default: "mcp-sec-scan.sarif"
 runs:
   using: "composite"
   steps:
@@ -29,6 +33,7 @@ runs:
         MCP_SEC_SCAN_TOKEN: ${{ inputs.token }}
       run: |
         ARGS="${{ inputs.url }} -m ${{ inputs.report }}"
+        [ -n "${{ inputs.sarif }}" ] && ARGS="$ARGS --sarif ${{ inputs.sarif }}"
         [ "${{ inputs.active }}" = "true" ] && ARGS="$ARGS --active"
         [ "${{ inputs.ci }}" = "true" ] && ARGS="$ARGS --ci"
         npx --yes mcp-sec-scan@^1 $ARGS
