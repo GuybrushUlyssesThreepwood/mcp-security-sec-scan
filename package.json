@@ -16,8 +16,9 @@
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
-    "test": "node --test --loader tsx dist-test-loader 2>/dev/null || tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "test": "node --import tsx --test test/unit.test.ts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
