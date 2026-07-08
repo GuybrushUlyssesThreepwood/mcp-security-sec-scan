@@ -1,51 +1,52 @@
 # mcp-sec-scan
 
-**Opinionated remote-MCP auth & tenancy security scanner.**
+**Fokussierter Security-Scanner für Remote-MCP-Server (Auth & Mandantentrennung).**
 
-Point it at a Model Context Protocol server (Streamable HTTP) and it checks the things that actually
-decide whether it's safe to let AI agents in: **OAuth 2.1 / PKCE, unauthenticated access, tenant-facing
-CORS, tool poisoning, error leakage, rate limiting.** From the outside, non-invasively.
+Zeig ihn auf einen Model-Context-Protocol-Server (Streamable HTTP) und er prüft genau die Dinge, die
+darüber entscheiden, ob man KI-Agenten hineinlassen darf: **OAuth 2.1 / PKCE, unauthentifizierter
+Zugriff, mandantengefährdendes CORS, Tool-Poisoning, Fehler-Leaks, Rate-Limiting.** Von außen, nicht
+invasiv.
 
-> Not another broad MCP linter. Focused on **auth & multi-tenancy** — the layer that no-code generators
-> and OpenAPI-to-MCP converters get wrong. (Different scope than the broad, generic scanners such as
-> Invariant `mcp-scan` or Cisco `mcp-scanner`.)
+> Kein weiterer breiter MCP-Linter. Fokus auf **Auth & Multi-Tenancy** — die Schicht, die No-Code-
+> Generatoren und OpenAPI-zu-MCP-Konverter falsch machen. (Anderer Scope als generische Scanner wie
+> Invariant `mcp-scan` oder Cisco `mcp-scanner`.)
 
 ---
 
-## Why this exists
+## Warum es das gibt
 
-Remote MCP servers are shipping fast, often via generators. The common failures are boring and dangerous:
-tool calls that work without a token, missing PKCE, wildcard CORS with credentials, stack traces leaking
-paths, tool descriptions carrying hidden instructions. `mcp-sec-scan` finds the externally visible ones in
-seconds and produces a report you can hand to a client.
+Remote-MCP-Server entstehen schnell, oft per Generator. Die typischen Fehler sind banal und gefährlich:
+Tool-Calls, die ohne Token funktionieren; fehlendes PKCE; Wildcard-CORS mit Credentials; Stacktraces,
+die Pfade leaken; Tool-Beschreibungen mit versteckten Anweisungen. `mcp-sec-scan` findet die von außen
+sichtbaren davon in Sekunden und erzeugt einen Report, den man einem Kunden geben kann.
 
-## Install
+## Installation
 
 ```bash
 npm install -g mcp-sec-scan
-# or run without installing:
+# oder ohne Installation ausführen:
 npx mcp-sec-scan <url>
 ```
 
-## Usage
+## Benutzung
 
 ```bash
 mcp-sec-scan https://example.com/mcp
 mcp-sec-scan https://example.com/mcp --active -m report.md
-MCP_SEC_SCAN_TOKEN=... mcp-sec-scan https://example.com/mcp   # deep checks with a token
+MCP_SEC_SCAN_TOKEN=... mcp-sec-scan https://example.com/mcp   # Tiefen-Checks mit Token
 ```
 
-| Option | Meaning |
-|--------|---------|
-| `--token <t>` | Bearer token for authenticated deep checks (or `MCP_SEC_SCAN_TOKEN`) |
-| `-m, --markdown <f>` | Write a Markdown report |
-| `--json <f>` | Write the raw JSON report |
-| `--sarif <f>` | Write a SARIF 2.1.0 report (GitHub Code Scanning / Security tab) |
-| `--active` | Enable active probes (small rate-limit burst) |
-| `--timeout <ms>` | Per-request timeout (default 10000) |
-| `--ci` | Exit `2` on any PROBLEM, `1` on any WARN, else `0` |
+| Option | Bedeutung |
+|--------|-----------|
+| `--token <t>` | Bearer-Token für authentifizierte Tiefen-Checks (oder `MCP_SEC_SCAN_TOKEN`) |
+| `-m, --markdown <f>` | Markdown-Report schreiben |
+| `--json <f>` | Rohen JSON-Report schreiben |
+| `--sarif <f>` | SARIF-2.1.0-Report schreiben (GitHub Code Scanning / Security-Tab) |
+| `--active` | Aktive Proben aktivieren (kleiner Rate-Limit-Burst) |
+| `--timeout <ms>` | Timeout pro Request (Standard 10000) |
+| `--ci` | Exit `2` bei PROBLEM, `1` bei WARN, sonst `0` |
 
-## Example output
+## Beispiel-Ausgabe
 
 ```
 ❌ PROBLEM  Tool listing without authentication
@@ -57,22 +58,22 @@ MCP_SEC_SCAN_TOKEN=... mcp-sec-scan https://example.com/mcp   # deep checks with
     No OAuth authorization-server metadata found under standard .well-known paths.
 ```
 
-A full sample report: [`examples/sample-report.md`](examples/sample-report.md).
+Ein vollständiger Beispiel-Report: [`examples/sample-report.md`](examples/sample-report.md).
 
-## Checks (v1.1)
+## Checks (v1.2 — 12 Prüfungen)
 
-1. TLS enforced (no cleartext HTTP)
-2. Authentication required
-3. Security headers (HSTS, `X-Content-Type-Options: nosniff`)
-4. Tool listing/use without authentication
-5. OAuth 2.1 metadata & PKCE (S256)
-6. Tool-poisoning heuristic (descriptions)
-7. CORS configuration (wildcard + credentials, origin reflection)
-8. Origin-header validation (DNS-rebinding, Streamable HTTP)
-9. Error verbosity (stack traces / secret leakage)
-10. Rate limiting (burst heuristic, `--active`)
-
-_Backlog: 12+ checks. See issues._
+1. TLS erzwungen (kein Klartext-HTTP)
+2. Authentifizierung erforderlich
+3. Security-Header (HSTS, `X-Content-Type-Options: nosniff`)
+4. Session-ID-Entropie (schwache/ratbare `mcp-session-id` → Session-Hijacking)
+5. Tool-Listing/-Nutzung ohne Authentifizierung
+6. OAuth-2.1-Metadaten & PKCE (S256)
+7. Protected Resource Metadata (RFC 9728) & Audience-Bindung (RFC 8707 — Token-Passthrough / Confused Deputy)
+8. Tool-Poisoning-Heuristik (Beschreibungen)
+9. CORS-Konfiguration (Wildcard + Credentials, Origin-Reflection)
+10. Origin-Header-Validierung (DNS-Rebinding, Streamable HTTP)
+11. Fehler-Ausführlichkeit (Stacktrace-/Secret-Leaks)
+12. Rate-Limiting (Burst-Heuristik, `--active`)
 
 ## GitHub Action
 
@@ -84,7 +85,7 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     permissions:
-      security-events: write   # required to upload SARIF
+      security-events: write   # nötig zum Hochladen von SARIF
     steps:
       - uses: actions/checkout@v4
       - uses: your-org/mcp-sec-scan/.github/actions/scan@v1
@@ -93,31 +94,33 @@ jobs:
           token: ${{ secrets.MCP_TOKEN }}
           ci: 'true'
       - name: Upload SARIF to the Security tab
-        if: always()   # still upload even when the scan failed the build
+        if: always()   # auch bei fehlgeschlagenem Scan hochladen
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: mcp-sec-scan.sarif
 ```
 
-Findings then show up under **Security → Code scanning**, one alert per check.
+Findings erscheinen dann unter **Security → Code scanning**, ein Alert pro Check.
 
-## Scope & limits
+## Scope & Grenzen
 
-This is an **external, non-invasive** scan. It cannot prove the absence of internal issues such as
-tenant-data leakage, audit-log completeness, or injection handling inside tool parameters. Those need a
-full audit (with access). It reports what an unauthenticated — or token-holding — client can observe.
+Dies ist ein **externer, nicht-invasiver** Scan. Er kann das Fehlen interner Probleme nicht beweisen —
+z. B. Mandantendaten-Leaks, Vollständigkeit des Audit-Logs oder Injection-Handling in Tool-Parametern.
+Dafür braucht es ein vollständiges Audit (mit Zugriff). Berichtet wird, was ein unauthentifizierter —
+oder Token-haltender — Client beobachten kann.
 
-## ⚠️ Legal
+## ⚠️ Rechtliches
 
-**Scan only servers you own or are explicitly authorized to test.** Unsolicited scanning of third-party
-systems may be unlawful. When offering a free scan, obtain the operator's documented permission first.
+**Scanne nur Server, die dir gehören oder für die du ausdrücklich autorisiert bist.** Unaufgefordertes
+Scannen fremder Systeme kann rechtswidrig sein. Bei einem kostenlosen Scan vorab die dokumentierte
+Erlaubnis des Betreibers einholen.
 
-## Want a deeper audit?
+## Tieferes Audit gewünscht?
 
-`mcp-sec-scan` is the free teaser. A full fixed-price MCP security audit adds the internal checks
-(tenant isolation, audit logging, injection handling) plus remediation steps — fully async, report + Loom,
-no meetings. → **[your-domain]**
+`mcp-sec-scan` ist der kostenlose Teaser. Ein vollständiges Festpreis-MCP-Security-Audit ergänzt die
+internen Checks (Mandantentrennung, Audit-Logging, Injection-Handling) plus Remediation-Schritte —
+vollständig asynchron, Report + Loom, keine Meetings. → **[your-domain]**
 
-## License
+## Lizenz
 
 Apache-2.0
