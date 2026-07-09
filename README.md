@@ -13,6 +13,22 @@ invasiv.
 
 ---
 
+## Was ist das?
+
+**Was es kann.** 12 externe, nicht-invasive Prüfungen gegen einen Remote-MCP-Server (Streamable HTTP):
+TLS, Auth-Pflicht, unauth. Tool-Zugriff, OAuth-2.1/PKCE-Metadaten, Audience-Bindung, Tool-Poisoning,
+CORS, Origin-Validierung, Fehler-Leaks, Rate-Limiting. Ausgabe als Terminal-Report, Markdown, JSON oder
+**SARIF** (GitHub Code Scanning) — plus fertige GitHub Action und CI-Exit-Codes.
+
+**Für wen.** SaaS-Teams und Agenturen, die Remote-MCP-Server bauen oder ausliefern — besonders solche,
+die per Generator/No-Code entstehen und Multi-Tenant-Kundendaten berühren. Sekundär: Auditoren, die
+einen schnellen, vorzeigbaren Erst-Befund brauchen.
+
+**Rolle im Geschäft / Erwartung.** Das kostenlose Tür-Produkt (Tickets T-101/102). Der Scan ist der
+Teaser; jeder Report endet mit dem Weg zum bezahlten Festpreis-Audit (async, Report + Loom, keine
+Meetings) und, laufend, zum Retainer. Zweck: Reputation über OSS, Vertrauen ohne Call, Einstieg in den
+Funnel.
+
 ## Warum es das gibt
 
 Remote-MCP-Server entstehen schnell, oft per Generator. Die typischen Fehler sind banal und gefährlich:
