@@ -37,16 +37,22 @@ sichtbaren davon in Sekunden und erzeugt einen Report, den man einem Kunden gebe
 
 ## Installation
 
-Aus dem Repository bauen — das Paket ist noch nicht auf npm veröffentlicht:
+```bash
+npm install -g mcp-sec-scan
+# oder ohne Installation ausführen:
+npx mcp-sec-scan <url>
+```
+
+Das Paket hat **keine Laufzeit-Abhängigkeiten** — die Installation zieht genau eine Datei-Sammlung,
+nichts Transitives. Für ein Werkzeug, das man in fremden CI-Pipelines laufen lässt, ist das Absicht.
+
+Aus dem Repository bauen geht auch:
 
 ```bash
 git clone https://github.com/GuybrushUlyssesThreepwood/mcp-security-sec-scan.git
 cd mcp-security-sec-scan
-npm ci && npm run build
-node dist/cli.js <url>
+npm ci && npm run build && node dist/cli.js <url>
 ```
-
-Optional global verlinken: `npm link`, danach steht `mcp-sec-scan` im Pfad.
 
 ## Benutzung
 

@@ -5,8 +5,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); this project us
 
 > **Note on earlier entries.** Up to 1.2.0 this file listed release dates that did not match the
 > repository: `1.2.0` was dated to July although its checks were first committed on 2026-08-29, and
-> `1.0.0` was dated *after* `1.1.0`. The entries below were corrected against `git log`. Nothing was
-> ever published to a package registry, so no released artifact is affected.
+> `1.0.0` was dated *after* `1.1.0`. The entries below were corrected against `git log`. None of
+> those versions was ever published to a package registry — the first published release is 1.3.0
+> (2026-08-29), so no released artifact carries the wrong history.
+
+## [1.3.1] - 2026-08-29
+### Fixed
+- README install section. 1.3.0 was published carrying a README that said the package was not
+  published — npm renders the README from the tarball, so the package page contradicted itself.
+  Documents `npm install -g mcp-sec-scan` again, and notes that the install pulls no transitive
+  dependencies.
 
 ## [1.3.0] - 2026-08-29
 ### Fixed
@@ -43,8 +51,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); this project us
   `resource-metadata`.
 - Report references no longer carry the internal ticket id `T-003`.
 - SARIF `helpUri` / `informationUri` pointed at the repository's former name.
-- The README documented `npm install -g mcp-sec-scan`, which does not work — the package is not
-  published. It now documents the build-from-source path.
+- The README documented `npm install -g mcp-sec-scan` while the package was still unpublished, so
+  the documented install could not work. Replaced with the build-from-source path; 1.3.1 restores
+  the npm install line now that the name is claimed.
 
 ### Added
 - The CLI rejects any target that is not an `http(s)` URL instead of letting it fail later as a
