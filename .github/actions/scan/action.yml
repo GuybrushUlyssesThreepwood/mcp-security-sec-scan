@@ -27,13 +27,39 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # The scanner is built from this action's own repository checkout, not fetched from a
+    # package registry. A registry install would let whoever controls that package name run
+    # code in every consumer's CI — with the bearer token below in the same environment.
+    - name: Build mcp-sec-scan from source
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        REPO_ROOT="$(cd "$ACTION_PATH/../../.." && pwd)"
+        echo "MCP_SEC_SCAN_ROOT=$REPO_ROOT" >> "$GITHUB_ENV"
+        cd "$REPO_ROOT"
+        npm ci --ignore-scripts
+        npm run build
+
+    # Every input is passed through the environment and dereferenced as a shell variable.
+    # Interpolating ${{ inputs.* }} directly into the script would splice attacker-controlled
+    # text into the command line before bash ever sees it.
     - name: Run mcp-sec-scan
       shell: bash
       env:
         MCP_SEC_SCAN_TOKEN: ${{ inputs.token }}
+        IN_URL: ${{ inputs.url }}
+        IN_REPORT: ${{ inputs.report }}
+        IN_SARIF: ${{ inputs.sarif }}
+        IN_ACTIVE: ${{ inputs.active }}
+        IN_CI: ${{ inputs.ci }}
       run: |
-        ARGS="${{ inputs.url }} -m ${{ inputs.report }}"
-        [ -n "${{ inputs.sarif }}" ] && ARGS="$ARGS --sarif ${{ inputs.sarif }}"
-        [ "${{ inputs.active }}" = "true" ] && ARGS="$ARGS --active"
-        [ "${{ inputs.ci }}" = "true" ] && ARGS="$ARGS --ci"
-        npx --yes mcp-sec-scan@^1 $ARGS
+        set -uo pipefail
+        args=("$IN_URL" -m "$IN_REPORT")
+        if [ -n "$IN_SARIF" ]; then args+=(--sarif "$IN_SARIF"); fi
+        if [ "$IN_ACTIVE" = "true" ]; then args+=(--active); fi
+        if [ "$IN_CI" = "true" ]; then args+=(--ci); fi
+        # No 'set -e': with --ci the scanner exits 1/2 on findings, and that exit code is the
+        # result this step is supposed to report.
+        node "$MCP_SEC_SCAN_ROOT/dist/cli.js" "${args[@]}"
