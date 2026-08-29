@@ -9,7 +9,7 @@ labels: enhancement
 Short id (e.g. `dns-rebinding`).
 
 **What it observes**
-What can be detected, ideally from the outside (non-invasive).
+What can be detected from the outside. State how many requests it costs and whether any of them reach the MCP endpoint itself.
 
 **Why it matters**
 The risk / attack scenario.

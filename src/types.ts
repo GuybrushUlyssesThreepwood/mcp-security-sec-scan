@@ -12,7 +12,7 @@ export interface Finding {
   detail: string;
   /** Handlungsempfehlung (leer bei pass). */
   remediation?: string;
-  /** Verweis auf Checklisten-Punkt (T-003) / Doku. */
+  /** Verweis auf Checklisten-Punkt / Doku. */
   reference?: string;
 }
 

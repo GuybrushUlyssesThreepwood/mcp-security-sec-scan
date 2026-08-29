@@ -1,4 +1,4 @@
-// Absichtlich unsicherer Mini-"MCP"-Server für Scanner-Tests (T-003 Dogfooding).
+// Absichtlich unsicherer Mini-"MCP"-Server für Scanner-Tests (Dogfooding im CI-Selbsttest).
 // KEIN echter MCP-Server — nur genug HTTP-Verhalten, um die Checks auszulösen.
 // Fehler bewusst eingebaut: keine Auth, Wildcard-CORS + Credentials, verbose Errors,
 // Tool mit Poisoning-Beschreibung, kein Rate-Limit.

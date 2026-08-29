@@ -23,8 +23,9 @@ node dist/cli.js http://127.0.0.1:8971/ --active --ci    # exits non-zero when f
 3. Add a unit test in `test/unit.test.ts` (keep it network-free where possible).
 4. Update the README check list and `CHANGELOG.md`.
 
-Checks should be **non-invasive by default**. Anything that sends more than a couple of requests belongs
-behind the `--active` flag.
+Keep the request budget small. Anything that sends more than a couple of requests belongs behind the
+`--active` flag. A check that never touches the MCP endpoint itself — URL inspection or a `.well-known`
+GET — sets `passiveSafe: true` so it still runs under `--passive`.
 
 ## Style
 - TypeScript strict mode; no `any` in new code where avoidable.

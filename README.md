@@ -18,7 +18,8 @@ Fehlerantwort. Deshalb gilt: **nur mit Erlaubnis des Betreibers.** Für Erhebung
 
 ## Was ist das?
 
-**Was es kann.** 12 externe, nicht-invasive Prüfungen gegen einen Remote-MCP-Server (Streamable HTTP):
+**Was es kann.** 12 externe Prüfungen gegen einen Remote-MCP-Server (Streamable HTTP) — ohne
+Schreibzugriff, im Standardlauf aber nicht rein beobachtend (siehe [Rechtliches](#️-rechtliches)):
 TLS, Auth-Pflicht, unauth. Tool-Zugriff, OAuth-2.1/PKCE-Metadaten, Audience-Bindung, Tool-Poisoning,
 CORS, Origin-Validierung, Fehler-Leaks, Rate-Limiting. Ausgabe als Terminal-Report, Markdown, JSON oder
 **SARIF** (GitHub Code Scanning) — plus fertige GitHub Action und CI-Exit-Codes.
@@ -26,11 +27,6 @@ CORS, Origin-Validierung, Fehler-Leaks, Rate-Limiting. Ausgabe als Terminal-Repo
 **Für wen.** SaaS-Teams und Agenturen, die Remote-MCP-Server bauen oder ausliefern — besonders solche,
 die per Generator/No-Code entstehen und Multi-Tenant-Kundendaten berühren. Sekundär: Auditoren, die
 einen schnellen, vorzeigbaren Erst-Befund brauchen.
-
-**Rolle im Geschäft / Erwartung.** Das kostenlose Tür-Produkt (Tickets T-101/102). Der Scan ist der
-Teaser; jeder Report endet mit dem Weg zum bezahlten Festpreis-Audit (async, Report + Loom, keine
-Meetings) und, laufend, zum Retainer. Zweck: Reputation über OSS, Vertrauen ohne Call, Einstieg in den
-Funnel.
 
 ## Warum es das gibt
 
@@ -41,11 +37,16 @@ sichtbaren davon in Sekunden und erzeugt einen Report, den man einem Kunden gebe
 
 ## Installation
 
+Aus dem Repository bauen — das Paket ist noch nicht auf npm veröffentlicht:
+
 ```bash
-npm install -g mcp-sec-scan
-# oder ohne Installation ausführen:
-npx mcp-sec-scan <url>
+git clone https://github.com/GuybrushUlyssesThreepwood/mcp-security-sec-scan.git
+cd mcp-security-sec-scan
+npm ci && npm run build
+node dist/cli.js <url>
 ```
+
+Optional global verlinken: `npm link`, danach steht `mcp-sec-scan` im Pfad.
 
 ## Benutzung
 
@@ -84,9 +85,12 @@ Handshake, keine Tool-Auflistung, keine provozierten Fehler, kein Burst.**
 mcp-sec-scan https://example.com/mcp --passive --json out.json
 ```
 
-Gemessen gegen einen protokollierenden Server: **2 Requests** (beide `.well-known`) statt **7** im
-Standardlauf, davon 5 direkt auf den Endpunkt. Die neun nicht ausgeführten Checks erscheinen im
-Report als `SKIPPED` mit Begründung — bewusst sichtbar statt still weggelassen.
+Gemessen gegen einen protokollierenden Server, der unauthentifiziertes `initialize` ablehnt:
+**2 Requests** (beide `.well-known`) statt **7**, davon 5 direkt auf den Endpunkt. Lässt ein Server
+`initialize` dagegen offen — der Normalfall —, führt der Standardlauf den Handshake fort und kommt
+auf 7 Requests direkt am Endpunkt. Der Beobachtungsmodus bleibt in beiden Fällen bei 2, keiner davon
+am Endpunkt. Die neun nicht ausgeführten Checks erscheinen im Report als `SKIPPED` mit Begründung —
+bewusst sichtbar statt still weggelassen.
 
 ⚠️ **Ein sauberes Ergebnis im Beobachtungsmodus sagt nichts über die Auth-Durchsetzung des Servers
 aus.** Ob `tools/list` ohne Token funktioniert, ist genau die Frage, die dieser Modus nicht stellt.
@@ -136,7 +140,9 @@ jobs:
       security-events: write   # nötig zum Hochladen von SARIF
     steps:
       - uses: actions/checkout@v4
-      - uses: GuybrushUlyssesThreepwood/mcp-security-sec-scan/.github/actions/scan@v1
+      # Auf einen Commit-SHA pinnen, sobald ein Release-Tag steht — eine bewegliche Ref
+      # führt fremden Code in deiner CI aus, sobald sie sich ändert.
+      - uses: GuybrushUlyssesThreepwood/mcp-security-sec-scan/.github/actions/scan@main
         with:
           url: ${{ vars.MCP_SERVER_URL }}
           token: ${{ secrets.MCP_TOKEN }}
@@ -165,11 +171,15 @@ oder Token-haltender — Client beobachten kann.
 Scannen fremder Systeme kann rechtswidrig sein (in Deutschland u. a. §§ 202a ff., 303b StGB). Bei einem
 kostenlosen Scan vorab die dokumentierte Erlaubnis des Betreibers einholen.
 
-**`--active` braucht eine ausdrückliche Erlaubnis.** Die Standardprüfungen sind rein beobachtend.
-`--active` sendet zusätzlich einen kurzen Anfragen-Burst, um Rate-Limiting zu erkennen — das ist die
-einzige Prüfung, die messbare Last auf dem Ziel erzeugt und im ungünstigen Fall Alarme auslöst oder
-einen knapp dimensionierten Server beeinträchtigt. Deshalb ist sie standardmäßig aus. Nur einschalten,
-wenn die Erlaubnis das aktive Prüfen ausdrücklich abdeckt, und möglichst außerhalb von Lastspitzen.
+**Schon der Standardlauf braucht die Erlaubnis, nicht erst `--active`.** Er spricht den MCP-Endpunkt
+selbst an: unauthentifizierter Handshake, `tools/list`, bewusst provozierte Fehlerantwort und eine
+Anfrage mit fremdem `Origin`-Header. Rein beobachtend ist ausschließlich `--passive`.
+
+**`--active` braucht darüber hinaus eine eigene, ausdrückliche Erlaubnis.** Es sendet zusätzlich einen
+kurzen Anfragen-Burst, um Rate-Limiting zu erkennen — die einzige Prüfung, die messbare Last erzeugt
+und im ungünstigen Fall Alarme auslöst oder einen knapp dimensionierten Server beeinträchtigt. Deshalb
+ist sie standardmäßig aus. Nur einschalten, wenn die Erlaubnis das aktive Prüfen ausdrücklich abdeckt,
+und möglichst außerhalb von Lastspitzen.
 
 **Dokumentiere die Erlaubnis, bevor du scannst** — wer, für welches Zielsystem, in welchem Zeitraum,
 mit oder ohne aktive Proben. Ohne diesen Nachweis fehlt im Streitfall die Grundlage, und

@@ -108,12 +108,16 @@ export function toMarkdown(report: ScanReport): string {
   }
   md.push(`---`);
   md.push("");
-  md.push(`> This is an **external, non-invasive** scan: it only observes what the server exposes without a valid token or with a token you provided. It does not prove the absence of internal issues (tenant isolation, audit logging, injection handling in tool parameters). A full audit adds those. Scan only servers you own or are explicitly authorized to test.`);
+  md.push(
+    report.mode === "passive"
+      ? `> This was an **observation-only** run: no request reached the MCP endpoint itself, only the standardised \`.well-known\` discovery paths. It proves nothing about the server's auth enforcement, and nothing about internal issues (tenant isolation, audit logging, injection handling in tool parameters). Scan only servers you own or are explicitly authorised to test.`
+      : `> This is an **external** scan without write access — but **not purely observational**: it performs an unauthenticated MCP handshake, attempts \`tools/list\`, deliberately provokes an error response and sends a request with a foreign \`Origin\` header. It does not prove the absence of internal issues (tenant isolation, audit logging, injection handling in tool parameters). A full audit adds those. Scan only servers you own or are explicitly authorised to test.`
+  );
   md.push("");
   return md.join("\n");
 }
 
-const REPO_URL = "https://github.com/GuybrushUlyssesThreepwood/mcp-sec-scan";
+const REPO_URL = "https://github.com/GuybrushUlyssesThreepwood/mcp-security-sec-scan";
 
 /** SARIF-Schweregrad: problem→error, warn→warning, sonst note. */
 function sarifLevel(sev: Severity): "error" | "warning" | "note" {
