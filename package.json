@@ -1,6 +1,6 @@
 {
   "name": "mcp-sec-scan",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Opinionated remote-MCP auth & tenancy security scanner. Checks what a Streamable HTTP MCP server exposes from the outside.",
   "type": "module",
   "bin": {

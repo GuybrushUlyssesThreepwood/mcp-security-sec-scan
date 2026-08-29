@@ -5,7 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { toolPoisoning, unauthTools } from "../src/checks/tools.js";
-import { securityHeaders, originValidation } from "../src/checks/transport.js";
+import { securityHeaders, originValidation, sessionIdEntropy } from "../src/checks/transport.js";
+import { resourceMetadata } from "../src/checks/auth.js";
 import { toMarkdown, toTerminal, toSarif, exitCode } from "../src/report.js";
 import { jsonRpc, initializeParams, wellKnown } from "../src/probe.js";
 import { runScan } from "../src/scanner.js";
@@ -145,6 +146,69 @@ test("origin-validation handles unreachable server gracefully (no throw)", async
   const ctx: ScanContext = { url: "http://127.0.0.1:9/mcp", timeoutMs: 400, activeProbes: false };
   const findings = await originValidation.run(ctx, {});
   assert.equal(findings.length >= 1, true);
+  assert.equal(findings[0].severity, "info");
+});
+
+test("resource-metadata passes with resource + authorization_servers and WWW-Authenticate pointer", async () => {
+  const shared: SharedState = {
+    prm: { status: 200, ok: true, headers: {}, json: { resource: "https://x/mcp", authorization_servers: ["https://issuer.example"] } },
+    unauthInitialize: { status: 401, ok: false, headers: { "www-authenticate": 'Bearer resource_metadata="https://x/.well-known/oauth-protected-resource"' } },
+  };
+  const findings = await resourceMetadata.run(baseCtx, shared);
+  assert.equal(findings[0].severity, "pass");
+  assert.match(findings[0].detail, /Resource-Metadaten/);
+});
+
+test("resource-metadata warns when PRM lacks a resource (no audience binding)", async () => {
+  const shared: SharedState = {
+    prm: { status: 200, ok: true, headers: {}, json: { authorization_servers: ["https://issuer.example"] } },
+    unauthInitialize: { status: 401, ok: false, headers: {} },
+  };
+  const findings = await resourceMetadata.run(baseCtx, shared);
+  assert.equal(findings[0].severity, "warn");
+  assert.match(findings[0].detail, /resource/i);
+});
+
+test("resource-metadata warns when auth is enforced but no PRM is published", async () => {
+  const shared: SharedState = {
+    prm: { status: 404, ok: false, headers: {} },
+    unauthInitialize: { status: 401, ok: false, headers: {} },
+  };
+  const findings = await resourceMetadata.run(baseCtx, shared);
+  assert.equal(findings[0].severity, "warn");
+});
+
+test("resource-metadata stays info when no auth is enforced and no PRM (avoids false positive)", async () => {
+  const shared: SharedState = {
+    prm: { status: 404, ok: false, headers: {} },
+    unauthInitialize: { status: 200, ok: true, headers: {} },
+  };
+  const findings = await resourceMetadata.run(baseCtx, shared);
+  assert.equal(findings[0].severity, "info");
+});
+
+test("session-id-entropy warns on a weak, guessable id", async () => {
+  const shared: SharedState = {
+    unauthInitialize: { status: 200, ok: true, headers: { "mcp-session-id": "test-session" } },
+  };
+  const findings = await sessionIdEntropy.run(baseCtx, shared);
+  assert.equal(findings[0].severity, "warn");
+  assert.doesNotMatch(findings[0].detail, /test-session/); // id must be redacted, not echoed
+});
+
+test("session-id-entropy passes on a high-entropy id", async () => {
+  const shared: SharedState = {
+    unauthInitialize: { status: 200, ok: true, headers: { "mcp-session-id": "9f2b7c1d4e6a8b0c2d4e6f8a1b3c5d7e" } },
+  };
+  const findings = await sessionIdEntropy.run(baseCtx, shared);
+  assert.equal(findings[0].severity, "pass");
+});
+
+test("session-id-entropy is info when the server issues no session id (stateless)", async () => {
+  const shared: SharedState = {
+    unauthInitialize: { status: 401, ok: false, headers: {} },
+  };
+  const findings = await sessionIdEntropy.run(baseCtx, shared);
   assert.equal(findings[0].severity, "info");
 });
 

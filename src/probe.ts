@@ -3,8 +3,8 @@
 // CORS, Fehler-Verbosity) — genau das prüft ein externer Security-Scan.
 
 import type { ProbeResult } from "./types.js";
+import { SCANNER_VERSION } from "./version.js";
 
-const SCANNER_VERSION = "1.1.0";
 export const CLIENT_PROTOCOL_VERSION = "2025-06-18";
 
 export function jsonRpc(method: string, params: unknown, id: number | string = 1) {

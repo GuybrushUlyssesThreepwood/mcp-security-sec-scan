@@ -39,6 +39,11 @@ export function toTerminal(report: ScanReport, color = true): string {
   lines.push(`mcp-sec-scan v${report.scannerVersion}`);
   lines.push(`Target : ${report.target}`);
   lines.push(`Scanned: ${report.scannedAt}`);
+  lines.push(
+    report.mode === "passive"
+      ? "Mode   : passive (observation only — no requests to the MCP endpoint itself)"
+      : "Mode   : standard (external scan — includes an unauthenticated handshake)"
+  );
   lines.push("");
   for (const f of sortFindings(report.findings)) {
     const c = color ? COLOR[f.severity] : "";
@@ -61,8 +66,20 @@ export function toMarkdown(report: ScanReport): string {
   md.push("");
   md.push(`**Target:** \`${report.target}\`  `);
   md.push(`**Scanned:** ${report.scannedAt}  `);
-  md.push(`**Scanner:** mcp-sec-scan v${report.scannerVersion}`);
+  md.push(`**Scanner:** mcp-sec-scan v${report.scannerVersion}  `);
+  md.push(`**Mode:** ${report.mode === "passive" ? "passive (observation only)" : "standard (external scan)"}`);
   md.push("");
+  if (report.mode === "passive") {
+    md.push(
+      "> **Beobachtungsmodus.** Es wurde keine Anfrage an den MCP-Endpunkt selbst gesendet — " +
+        "geprüft wurden ausschließlich die URL und die standardisierten `.well-known`-Discovery-Pfade " +
+        "(RFC 8414 / RFC 9728), die dafür veröffentlicht werden, unauthentifiziert abgerufen zu werden. " +
+        "Kein Handshake, keine Tool-Auflistung, keine provozierten Fehler, kein Burst. " +
+        "**Ein sauberes Ergebnis in diesem Modus sagt nichts über die Auth-Durchsetzung des Servers aus** — " +
+        "dafür braucht es einen vollständigen Scan mit Erlaubnis des Betreibers."
+    );
+    md.push("");
+  }
   md.push(`## Summary`);
   md.push("");
   md.push(`| Severity | Count |`);

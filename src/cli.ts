@@ -14,6 +14,7 @@ interface Args {
   sarif?: string;
   timeoutMs: number;
   active: boolean;
+  passive: boolean;
   noColor: boolean;
   ci: boolean;
   help: boolean;
@@ -21,7 +22,7 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { timeoutMs: 10000, active: false, noColor: false, ci: false, help: false, version: false };
+  const a: Args = { timeoutMs: 10000, active: false, passive: false, noColor: false, ci: false, help: false, version: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {
@@ -33,6 +34,7 @@ function parseArgs(argv: string[]): Args {
       case "--sarif": a.sarif = argv[++i]; break;
       case "--timeout": a.timeoutMs = Number(argv[++i]) || 10000; break;
       case "--active": a.active = true; break;
+      case "--passive": a.passive = true; break;
       case "--no-color": a.noColor = true; break;
       case "--ci": a.ci = true; break;
       default:
@@ -56,30 +58,57 @@ OPTIONS
   --json <f>         Write raw JSON report to file <f>
   --sarif <f>        Write a SARIF 2.1.0 report to file <f> (GitHub Code Scanning)
   --timeout <ms>     Per-request timeout in ms (default 10000)
-  --active           Enable active probes (small rate-limit burst)
+  --active           Enable active probes (small rate-limit burst) — needs explicit permission
+  --passive          Observation mode: no requests to the MCP endpoint itself.
+                     Runs only URL inspection and GETs on the standardised .well-known
+                     discovery paths (RFC 8414 / RFC 9728), which exist to be fetched
+                     unauthenticated. No JSON-RPC, no handshake, no tool listing, no
+                     provoked errors, no burst. Use for surveys across third-party
+                     servers where you hold no per-server authorisation.
   --no-color         Disable colored terminal output
   --ci               CI mode: exit 2 on any PROBLEM, 1 on any WARN, else 0
   -h, --help         Show this help
   -v, --version      Show version
 
 LEGAL
-  Scan only servers you own or are explicitly authorized to test.
-  Unsolicited scanning of third-party systems may be unlawful.
+  The default mode is an EXTERNAL but NOT purely observational scan: it performs an
+  unauthenticated MCP handshake, attempts to list tools and deliberately provokes an
+  error response. Run it only against servers you own or are explicitly authorised to
+  test, and keep that authorisation on record. Unsolicited scanning of third-party
+  systems may be unlawful (in Germany e.g. §§ 202a ff., 303b StGB) and professional
+  indemnity insurers typically cover assessment work only with the operator's mandate.
+  --passive exists for exactly the case where you have no such mandate.
 
-EXAMPLE
-  mcp-sec-scan https://example.com/mcp --active -m report.md
+EXAMPLES
+  mcp-sec-scan https://example.com/mcp --active -m report.md   # authorised full scan
+  mcp-sec-scan https://example.com/mcp --passive --json out.json  # survey, no mandate
 `;
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.version) { console.log(SCANNER_VERSION); return; }
-  if (args.help || !args.url) { console.log(HELP); process.exit(args.url ? 0 : 1); }
+  if (args.help || !args.url) { console.log(HELP); process.exitCode = args.url ? 0 : 1; return; }
+
+  // --passive und --active widersprechen sich: der eine verbietet jede Anfrage an den Endpunkt,
+  // der andere erzeugt bewusst Last darauf. Hart abbrechen statt still eines gewinnen zu lassen —
+  // wer beides tippt, hat eine falsche Vorstellung davon, was gleich passiert.
+  if (args.passive && args.active) {
+    console.error("Fehler: --passive und --active schließen sich aus. --passive sendet keine Anfrage an den Endpunkt, --active erzeugt bewusst Last darauf.");
+    process.exitCode = 1;
+    return;
+  }
+  if (args.passive && args.token) {
+    console.error("Fehler: --passive und --token schließen sich aus. Ein Token bedeutet, dass du autorisiert bist — dann ist der Beobachtungsmodus nicht nötig.");
+    process.exitCode = 1;
+    return;
+  }
 
   const ctx: ScanContext = {
     url: args.url!,
     token: args.token,
     timeoutMs: args.timeoutMs,
     activeProbes: args.active,
+    passive: args.passive,
   };
 
   const report = await runScan(ctx);
@@ -99,10 +128,14 @@ async function main() {
     console.log(`SARIF report written to ${args.sarif}`);
   }
 
-  if (args.ci) process.exit(exitCode(report));
+  // process.exitCode statt process.exit(): Node beendet erst, wenn stdout geflusht und
+  // offene Handles geschlossen sind. Ein hartes process.exit() kann auf Windows mit
+  // Node 24 mit dem Teardown offener Sockets/Pipes kollidieren (libuv-Assertion) und den
+  // Exit-Code verfälschen — genau der, auf den ein CI-Gate sich verlässt.
+  if (args.ci) process.exitCode = exitCode(report);
 }
 
 main().catch((err) => {
   console.error("Fatal:", err instanceof Error ? err.message : err);
-  process.exit(3);
+  process.exitCode = 3;
 });

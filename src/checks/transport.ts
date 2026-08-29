@@ -1,9 +1,10 @@
-// Transport-/CORS-Checks: TLS-Erzwingung, CORS, Origin-Validierung und Sicherheits-Header.
+// Transport-/CORS-Checks: TLS-Erzwingung, CORS, Origin-Validierung, Sicherheits-Header, Session-ID-Entropie.
 
 import type { Check, Finding, ScanContext, SharedState } from "../types.js";
 import { getUrl, postRpc, jsonRpc, initializeParams } from "../probe.js";
 
 const REF = "MCP Security Checklist #15 (T-003)";
+const REF_SESSION = "MCP Security Checklist Session-Hijacking (T-003)";
 
 function safeProtocol(url: string): string {
   try {
@@ -14,6 +15,7 @@ function safeProtocol(url: string): string {
 }
 
 export const tlsEnforced: Check = {
+  passiveSafe: true,
   id: "tls-enforced",
   title: "TLS erzwungen (kein Klartext-HTTP)",
   async run(ctx: ScanContext): Promise<Finding[]> {
@@ -177,6 +179,77 @@ export const securityHeaders: Check = {
       detail: `Fehlende Sicherheits-Header: ${missing.join(", ")}.`,
       remediation: "Über HTTPS 'Strict-Transport-Security: max-age=15552000; includeSubDomains' setzen und 'X-Content-Type-Options: nosniff' senden.",
       reference: REF,
+    }];
+  },
+};
+
+/** Shannon-Entropie je Zeichen (bit). Grobes Maß für Zufälligkeit einer Session-ID. */
+function shannonBitsPerChar(s: string): number {
+  const freq = new Map<string, number>();
+  for (const ch of s) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  let h = 0;
+  for (const c of freq.values()) {
+    const p = c / s.length;
+    h -= p * Math.log2(p);
+  }
+  return h;
+}
+
+/** Gibt einen Grund zurück, wenn die Session-ID schwach wirkt, sonst null. Bewusst konservativ. */
+function assessSessionId(sid: string): string | null {
+  if (sid.length < 16) return `zu kurz (${sid.length} Zeichen, < 16)`;
+  if (/^[0-9]+$/.test(sid)) return "nur Ziffern (leicht ratbar/sequentiell)";
+  if (/session|sess-|test|demo|token|admin|default|guest/i.test(sid)) return "enthält vorhersagbares Klartext-Wort";
+  const distinct = new Set(sid).size;
+  if (distinct < 8) return `geringe Zeichenvielfalt (nur ${distinct} verschiedene Zeichen)`;
+  const bits = shannonBitsPerChar(sid);
+  if (bits < 2.5) return `niedrige Entropie (${bits.toFixed(1)} bit/Zeichen)`;
+  return null;
+}
+
+/** Session-ID nicht im Klartext ausgeben (könnte auf einem echten Ziel ein aktives Token sein). */
+function redactSid(sid: string): string {
+  return `${sid.slice(0, 4)}…, ${sid.length} Zeichen`;
+}
+
+export const sessionIdEntropy: Check = {
+  id: "session-id-entropy",
+  title: "Session-ID Unvorhersagbarkeit (mcp-session-id)",
+  async run(ctx: ScanContext, shared: SharedState): Promise<Finding[]> {
+    // MCP Streamable HTTP: Session-IDs MÜSSEN kryptographisch sicher sein (sonst Session-Hijacking).
+    // Bevorzugt die bereits gesehene initialize-Antwort nutzen; nur andernfalls selbst einmal proben.
+    let headers = shared.unauthInitialize?.headers;
+    if (!shared.unauthInitialize) {
+      const probe = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), {
+        timeoutMs: ctx.timeoutMs,
+        token: ctx.token,
+      });
+      shared.unauthInitialize = probe;
+      headers = probe.headers;
+    }
+
+    const sid = headers?.["mcp-session-id"];
+    if (!sid) {
+      return [{
+        id: this.id, title: this.title, severity: "info",
+        detail: "Server vergibt keine 'mcp-session-id' im Antwort-Header (vermutlich zustandslos) — kein über den Header ratbarer Session-Vektor.",
+        reference: REF_SESSION,
+      }];
+    }
+
+    const weak = assessSessionId(sid);
+    if (weak) {
+      return [{
+        id: this.id, title: this.title, severity: "warn",
+        detail: `Ausgegebene 'mcp-session-id' (${redactSid(sid)}) wirkt schwach: ${weak}. Ratbar/erzwingbar → Risiko Session-Hijacking.`,
+        remediation: "Kryptographisch sichere Session-IDs verwenden (CSPRNG, ≥128 Bit Entropie, z. B. crypto.randomUUID); nicht sequentiell oder aus Klartext ableiten.",
+        reference: REF_SESSION,
+      }];
+    }
+    return [{
+      id: this.id, title: this.title, severity: "pass",
+      detail: `Ausgegebene 'mcp-session-id' hat ausreichende Länge/Entropie (${sid.length} Zeichen, hohe Zeichenvielfalt).`,
+      reference: REF_SESSION,
     }];
   },
 };
