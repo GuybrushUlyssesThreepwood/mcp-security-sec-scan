@@ -103,6 +103,22 @@ async function main() {
     return;
   }
 
+  // Nur http/https. Sonst würde ein 'file:'- oder 'data:'-Ziel bis in die Checks durchlaufen und
+  // dort als Netzwerkfehler auftauchen, statt als das was es ist: eine unbrauchbare Eingabe.
+  let scheme: string;
+  try {
+    scheme = new URL(args.url!).protocol;
+  } catch {
+    console.error(`Fehler: '${args.url}' ist keine gültige URL.`);
+    process.exitCode = 1;
+    return;
+  }
+  if (scheme !== "http:" && scheme !== "https:") {
+    console.error(`Fehler: Schema '${scheme}' wird nicht unterstützt. Erwartet wird ein http(s)-MCP-Endpunkt.`);
+    process.exitCode = 1;
+    return;
+  }
+
   const ctx: ScanContext = {
     url: args.url!,
     token: args.token,

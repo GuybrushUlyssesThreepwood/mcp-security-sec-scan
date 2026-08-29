@@ -4,7 +4,7 @@
 import type { Check, Finding, ScanContext } from "../types.js";
 import { initializeParams, jsonRpc, postRpc } from "../probe.js";
 
-const REF = "MCP Security Checklist #12 Rate-Limiting (T-003)";
+const REF = "MCP Security Checklist #12 Rate-Limiting";
 const BURST = 12;
 
 export const rateLimiting: Check = {

@@ -218,3 +218,82 @@ test("runScan aggregates a summary without throwing on a dead target", async () 
   assert.equal(typeof report.summary.problem, "number");
   assert.equal(report.findings.length > 0, true);
 });
+
+// --- Regressionstests zu den False Positives aus 1.3.0 -----------------------------------------
+// Diese brauchen einen echten Socket: der Fehler saß in der Auswertung der HTTP-Antwort, nicht in
+// einer reinen Funktion. Server laufen auf einem Ephemeral-Port und werden je Test beendet.
+
+import { createServer, type Server } from "node:http";
+import { oauthMetadataPkce } from "../src/checks/auth.js";
+
+async function withServer(
+  handler: (path: string, body: string) => { status?: number; json: unknown },
+  fn: (url: string) => Promise<void>
+): Promise<void> {
+  const srv: Server = createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      const { status = 200, json } = handler(req.url ?? "/", body);
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(json));
+    });
+  });
+  await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+  const { port } = srv.address() as { port: number };
+  try {
+    await fn(`http://127.0.0.1:${port}/mcp`);
+  } finally {
+    await new Promise<void>((r) => srv.close(() => r()));
+  }
+}
+
+test("unauth-tools treats a JSON-RPC error over HTTP 200 as a refusal, not as a successful listing", async () => {
+  // JSON-RPC 2.0 §5.1 transports application errors in the body, with HTTP 200. A server refusing
+  // unauthenticated tool use this way used to be reported as PROBLEM "0 tools visible".
+  await withServer(
+    (_path, body) => {
+      const rpc = JSON.parse(body || "{}");
+      if (rpc.method === "initialize") {
+        return { json: { jsonrpc: "2.0", id: rpc.id, result: { protocolVersion: "2025-06-18", capabilities: {} } } };
+      }
+      return { json: { jsonrpc: "2.0", id: rpc.id ?? null, error: { code: -32003, message: "Access denied" } } };
+    },
+    async (url) => {
+      const findings = await unauthTools.run({ ...baseCtx, url }, {});
+      assert.equal(findings[0].severity, "pass");
+      assert.match(findings[0].detail, /abgewiesen/);
+    }
+  );
+});
+
+test("unauth-tools still reports an actually reachable tool list as a problem", async () => {
+  await withServer(
+    (_path, body) => {
+      const rpc = JSON.parse(body || "{}");
+      if (rpc.method === "initialize") {
+        return { json: { jsonrpc: "2.0", id: rpc.id, result: { protocolVersion: "2025-06-18", capabilities: {} } } };
+      }
+      return { json: { jsonrpc: "2.0", id: rpc.id, result: { tools: [{ name: "read_notes" }, { name: "write_notes" }] } } };
+    },
+    async (url) => {
+      const findings = await unauthTools.run({ ...baseCtx, url }, {});
+      assert.equal(findings[0].severity, "problem");
+      assert.match(findings[0].detail, /2 Tools/);
+    }
+  );
+});
+
+test("oauth-metadata-pkce ignores a catch-all that answers every path with 200 JSON", async () => {
+  // Without a shape check, {"ok":true} at the .well-known path was read as authorization-server
+  // metadata missing S256 — a PROBLEM for a server that publishes no metadata at all.
+  await withServer(
+    () => ({ json: { ok: true } }),
+    async (url) => {
+      const findings = await oauthMetadataPkce.run({ ...baseCtx, url }, {});
+      assert.equal(findings.length, 1);
+      assert.equal(findings[0].severity, "warn");
+      assert.match(findings[0].detail, /Keine OAuth-Authorization-Server-Metadaten/);
+    }
+  );
+});

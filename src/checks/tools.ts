@@ -3,11 +3,14 @@
 import type { Check, Finding, McpTool, ScanContext, SharedState } from "../types.js";
 import { initializeParams, jsonRpc, postRpc } from "../probe.js";
 
-const REF_UNAUTH = "MCP Security Checklist #1 (T-003)";
-const REF_POISON = "MCP Security Checklist #9 Tool Poisoning (T-003)";
+const REF_UNAUTH = "MCP Security Checklist #1";
+const REF_POISON = "MCP Security Checklist #9 Tool Poisoning";
 
 /** MCP-Handshake so weit wie nötig, um tools/list zu versuchen. */
-async function listTools(ctx: ScanContext, withToken: boolean): Promise<{ status: number; tools?: McpTool[]; error?: string }> {
+async function listTools(
+  ctx: ScanContext,
+  withToken: boolean
+): Promise<{ status: number; tools?: McpTool[]; rpcError?: { code?: number; message?: string }; error?: string }> {
   const token = withToken ? ctx.token : undefined;
   const init = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), { timeoutMs: ctx.timeoutMs, token });
   if (init.error) return { status: 0, error: init.error };
@@ -21,8 +24,16 @@ async function listTools(ctx: ScanContext, withToken: boolean): Promise<{ status
   const list = await postRpc(ctx.url, jsonRpc("tools/list", {}, 2), { timeoutMs: ctx.timeoutMs, token, sessionId });
   if (list.status < 200 || list.status >= 300) return { status: list.status };
 
-  const result = (list.json as { result?: { tools?: McpTool[] } })?.result;
-  return { status: list.status, tools: result?.tools ?? [] };
+  // JSON-RPC transportiert Anwendungsfehler über HTTP 200 mit 'error'-Objekt (JSON-RPC 2.0 §5.1).
+  // Ein Server, der unauthentifiziertes tools/list korrekt so ablehnt, hat NICHT geliefert —
+  // das als Erfolg zu werten war ein False Positive der höchsten Schwere.
+  const body = list.json as { result?: { tools?: McpTool[] }; error?: { code?: number; message?: string } } | undefined;
+  if (body?.error) return { status: list.status, rpcError: body.error };
+
+  // Kein 'result' im Body = keine verwertbare Antwort. Nicht als leere Tool-Liste ausgeben.
+  if (!body?.result || !Array.isArray(body.result.tools)) return { status: list.status };
+
+  return { status: list.status, tools: body.result.tools };
 }
 
 export const unauthTools: Check = {
@@ -31,13 +42,30 @@ export const unauthTools: Check = {
   async run(ctx: ScanContext, shared: SharedState): Promise<Finding[]> {
     const res = await listTools(ctx, false);
 
-    if (res.tools) {
+    if (res.tools && res.tools.length > 0) {
       // Für spätere Checks (Poisoning) merken, wenn wir sie sonst nicht kennen.
       if (!shared.tools) shared.tools = res.tools;
       return [{
         id: this.id, title: this.title, severity: "problem",
         detail: `tools/list ohne Token erfolgreich (${res.tools.length} Tools sichtbar). Der Server verlangt keine Authentifizierung für die Tool-Nutzung.`,
         remediation: "OAuth 2.1 für alle Tool-Operationen erzwingen; unauthentifizierte Requests mit 401 abweisen.",
+        reference: REF_UNAUTH,
+      }];
+    }
+    if (res.tools) {
+      // Antwort war formal erfolgreich, enthielt aber keine Tools. Kein Auth-Befund.
+      if (!shared.tools) shared.tools = res.tools;
+      return [{
+        id: this.id, title: this.title, severity: "info",
+        detail: "tools/list ohne Token liefert eine leere Tool-Liste. Kein unauthentifizierter Tool-Zugriff nachweisbar — der Server bietet hier schlicht keine Tools an.",
+        reference: REF_UNAUTH,
+      }];
+    }
+    if (res.rpcError) {
+      // Ablehnung per JSON-RPC-Fehler über HTTP 200 ist spec-konform und zählt als Abweisung.
+      return [{
+        id: this.id, title: this.title, severity: "pass",
+        detail: `tools/list ohne Token abgewiesen (JSON-RPC-Fehler ${res.rpcError.code ?? "?"}: ${res.rpcError.message ?? "ohne Meldung"}, HTTP ${res.status}).`,
         reference: REF_UNAUTH,
       }];
     }
@@ -62,7 +90,9 @@ const POISON_PATTERNS: Array<{ re: RegExp; label: string }> = [
   { re: /\b(system\s*:|assistant\s*:)/i, label: "Rollen-Injektion" },
   { re: /do\s+not\s+(tell|inform|mention).*(user|owner)/i, label: "Verschleierungs-Anweisung" },
   { re: /(exfiltrat|send\s+.*to\s+https?:\/\/|curl\s+https?:\/\/)/i, label: "Exfiltrations-Hinweis" },
-  { re: /(\.env|id_rsa|~\/\.ssh|aws_secret|password)/i, label: "Secret-/Dateipfad-Referenz" },
+  // Bewusst eng: ein Tool, das legitim ein Passwort entgegennimmt (Login, Vault, DB-Connect),
+  // ist kein Poisoning-Fund. Nur Verweise auf fremde Secret-Dateien/-Speicher zählen.
+  { re: /(\.env\b|id_rsa|~\/\.ssh|\.aws\/credentials|aws_secret_access_key|\.git-credentials)/i, label: "Secret-/Dateipfad-Referenz" },
   { re: /[​-‏‪-‮⁠]/, label: "unsichtbare/Steuer-Unicode-Zeichen" },
 ];
 

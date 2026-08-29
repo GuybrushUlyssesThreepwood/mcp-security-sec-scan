@@ -3,8 +3,8 @@
 import type { Check, Finding, ScanContext, SharedState } from "../types.js";
 import { getUrl, postRpc, jsonRpc, initializeParams } from "../probe.js";
 
-const REF = "MCP Security Checklist #15 (T-003)";
-const REF_SESSION = "MCP Security Checklist Session-Hijacking (T-003)";
+const REF = "MCP Security Checklist #15";
+const REF_SESSION = "MCP Security Checklist Session-Hijacking";
 
 function safeProtocol(url: string): string {
   try {
@@ -145,11 +145,12 @@ export const securityHeaders: Check = {
   title: "Sicherheits-Header (HSTS, nosniff)",
   async run(ctx: ScanContext, shared: SharedState): Promise<Finding[]> {
     // Wiederverwenden, was 'auth-required' bereits ermittelt hat; sonst selbst einmal proben.
+    // Ohne Token: das Ergebnis landet in shared.unauthInitialize, und 'resource-metadata' leitet
+    // daraus ab, ob der Server Auth erzwingt. Ein Token hier würde diese Ableitung verfälschen.
     let headers = shared.unauthInitialize?.headers;
     if (!headers) {
       const probe = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), {
         timeoutMs: ctx.timeoutMs,
-        token: ctx.token,
       });
       shared.unauthInitialize = probe;
       headers = probe.headers;
@@ -220,9 +221,9 @@ export const sessionIdEntropy: Check = {
     // Bevorzugt die bereits gesehene initialize-Antwort nutzen; nur andernfalls selbst einmal proben.
     let headers = shared.unauthInitialize?.headers;
     if (!shared.unauthInitialize) {
+      // Ohne Token — siehe Begründung im 'security-headers'-Check.
       const probe = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), {
         timeoutMs: ctx.timeoutMs,
-        token: ctx.token,
       });
       shared.unauthInitialize = probe;
       headers = probe.headers;
