@@ -118,7 +118,7 @@ Wer eine belastbare Aussage braucht, braucht den vollen Scan — und damit die E
 
 Ein vollständiger Beispiel-Report: [`examples/sample-report.md`](examples/sample-report.md).
 
-## Checks (v1.2 — 12 Prüfungen)
+## Checks (12 Prüfungen)
 
 1. TLS erzwungen (kein Klartext-HTTP)
 2. Authentifizierung erforderlich
@@ -197,6 +197,11 @@ durch den Systembetreiber.
 `mcp-sec-scan` ist der kostenlose Teaser. Ein vollständiges Festpreis-MCP-Security-Audit ergänzt die
 internen Checks (Mandantentrennung, Audit-Logging, Injection-Handling) plus Remediation-Schritte —
 vollständig asynchron, Report + Loom, keine Meetings. → **https://www.honrodt.de** (eigene Produkt-Domain folgt)
+
+## Anbieter
+
+Yimmie Honrodt, Einzelunternehmen, Köln — **Impressum und Anbieterkennzeichnung nach § 5 DDG:**
+https://honrodt.de/impressum · Kontakt: kontakt@honrodt.de
 
 ## Lizenz
 
