@@ -1,5 +1,5 @@
-// Absichtlich unsicherer Mini-"MCP"-Server für Scanner-Tests (Dogfooding im CI-Selbsttest).
-// KEIN echter MCP-Server — nur genug HTTP-Verhalten, um die Checks auszulösen.
+// Deliberately insecure mini "MCP" server for scanner tests (dogfooding in the CI self-test).
+// NOT a real MCP server — just enough HTTP behaviour to trigger the checks.
 // Fehler bewusst eingebaut: keine Auth, Wildcard-CORS + Credentials, verbose Errors,
 // Tool mit Poisoning-Beschreibung, kein Rate-Limit.
 
@@ -29,11 +29,11 @@ const server = createServer((req, res) => {
     try {
       msg = JSON.parse(raw || "{}");
     } catch {
-      // Verbose Error: leakt einen Pfad (löst error-verbosity aus).
+      // Verbose error: leaks a path (triggers error-verbosity).
       return send(res, 400, { error: "SyntaxError at /var/app/src/handler.js:42:17 unexpected token" });
     }
 
-    // Kein Auth-Check — jeder darf alles (löst unauth-tools + auth-required INFO aus).
+    // No auth check — everyone may do everything (triggers unauth-tools + the auth-required INFO).
     if (msg.method === "initialize") {
       return send(res, 200, {
         jsonrpc: "2.0", id: msg.id,

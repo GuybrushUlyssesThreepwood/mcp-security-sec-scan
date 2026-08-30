@@ -1,52 +1,52 @@
 # mcp-sec-scan
 
-**Fokussierter Security-Scanner für Remote-MCP-Server (Auth & Mandantentrennung).**
+**Focused security scanner for remote MCP servers (auth & tenant isolation).**
 
-Zeig ihn auf einen Model-Context-Protocol-Server (Streamable HTTP) und er prüft genau die Dinge, die
-darüber entscheiden, ob man KI-Agenten hineinlassen darf: **OAuth 2.1 / PKCE, unauthentifizierter
-Zugriff, mandantengefährdendes CORS, Tool-Poisoning, Fehler-Leaks, Rate-Limiting.** Von außen und
-ohne Schreibzugriff — aber **nicht rein beobachtend**: der Standardlauf führt einen
-unauthentifizierten MCP-Handshake durch, versucht `tools/list` und provoziert bewusst eine
-Fehlerantwort. Deshalb gilt: **nur mit Erlaubnis des Betreibers.** Für Erhebungen ohne Auftrag gibt es
-[`--passive`](#--passive--beobachtungsmodus-ohne-auftrag).
+Point it at a Model Context Protocol server (Streamable HTTP) and it checks exactly the things that
+decide whether you can let AI agents in: **OAuth 2.1 / PKCE, unauthenticated access, tenant-endangering
+CORS, tool poisoning, error leaks, rate limiting.** From the outside and without write access — but
+**not purely observational**: the default run performs an unauthenticated MCP handshake, attempts
+`tools/list` and deliberately provokes an error response. So: **only with the operator's permission.**
+For surveys without a mandate there is
+[`--passive`](#--passive--observation-mode-without-a-mandate).
 
-> Kein weiterer breiter MCP-Linter. Fokus auf **Auth & Multi-Tenancy** — die Schicht, die No-Code-
-> Generatoren und OpenAPI-zu-MCP-Konverter falsch machen. (Anderer Scope als generische Scanner wie
-> Invariant `mcp-scan` oder Cisco `mcp-scanner`.)
+> Not another broad MCP linter. The focus is **auth & multi-tenancy** — the layer no-code generators
+> and OpenAPI-to-MCP converters get wrong. (Different scope than generic scanners such as Invariant
+> `mcp-scan` or Cisco `mcp-scanner`.)
 
 ---
 
-## Was ist das?
+## What is this?
 
-**Was es kann.** 12 externe Prüfungen gegen einen Remote-MCP-Server (Streamable HTTP) — ohne
-Schreibzugriff, im Standardlauf aber nicht rein beobachtend (siehe [Rechtliches](#️-rechtliches)):
-TLS, Auth-Pflicht, unauth. Tool-Zugriff, OAuth-2.1/PKCE-Metadaten, Audience-Bindung, Tool-Poisoning,
-CORS, Origin-Validierung, Fehler-Leaks, Rate-Limiting. Ausgabe als Terminal-Report, Markdown, JSON oder
-**SARIF** (GitHub Code Scanning) — plus fertige GitHub Action und CI-Exit-Codes.
+**What it does.** 12 external checks against a remote MCP server (Streamable HTTP) — without write
+access, but in the default run not purely observational (see [Legal](#️-legal)): TLS, auth enforcement,
+unauthenticated tool access, OAuth 2.1 / PKCE metadata, audience binding, tool poisoning, CORS, origin
+validation, error leaks, rate limiting. Output as a terminal report, Markdown, JSON or **SARIF**
+(GitHub Code Scanning) — plus a ready-made GitHub Action and CI exit codes.
 
-**Für wen.** SaaS-Teams und Agenturen, die Remote-MCP-Server bauen oder ausliefern — besonders solche,
-die per Generator/No-Code entstehen und Multi-Tenant-Kundendaten berühren. Sekundär: Auditoren, die
-einen schnellen, vorzeigbaren Erst-Befund brauchen.
+**Who it is for.** SaaS teams and agencies that build or ship remote MCP servers — especially ones
+produced by generators or no-code tooling that touch multi-tenant customer data. Secondary: auditors
+who need a fast, presentable first finding.
 
-## Warum es das gibt
+## Why it exists
 
-Remote-MCP-Server entstehen schnell, oft per Generator. Die typischen Fehler sind banal und gefährlich:
-Tool-Calls, die ohne Token funktionieren; fehlendes PKCE; Wildcard-CORS mit Credentials; Stacktraces,
-die Pfade leaken; Tool-Beschreibungen mit versteckten Anweisungen. `mcp-sec-scan` findet die von außen
-sichtbaren davon in Sekunden und erzeugt einen Report, den man einem Kunden geben kann.
+Remote MCP servers appear quickly, often generated. The typical mistakes are banal and dangerous:
+tool calls that work without a token; missing PKCE; wildcard CORS with credentials; stack traces that
+leak paths; tool descriptions carrying hidden instructions. `mcp-sec-scan` finds the externally visible
+ones in seconds and produces a report you can hand to a customer.
 
 ## Installation
 
 ```bash
 npm install -g mcp-sec-scan
-# oder ohne Installation ausführen:
+# or run without installing:
 npx mcp-sec-scan <url>
 ```
 
-Das Paket hat **keine Laufzeit-Abhängigkeiten** — die Installation zieht genau eine Datei-Sammlung,
-nichts Transitives. Für ein Werkzeug, das man in fremden CI-Pipelines laufen lässt, ist das Absicht.
+The package has **no runtime dependencies** — installing it pulls exactly one set of files, nothing
+transitive. For a tool you run inside other people's CI pipelines, that is deliberate.
 
-Aus dem Repository bauen geht auch:
+Building from the repository works too:
 
 ```bash
 git clone https://github.com/GuybrushUlyssesThreepwood/mcp-security-sec-scan.git
@@ -54,57 +54,58 @@ cd mcp-security-sec-scan
 npm ci && npm run build && node dist/cli.js <url>
 ```
 
-## Benutzung
+## Usage
 
 ```bash
 mcp-sec-scan https://example.com/mcp
 mcp-sec-scan https://example.com/mcp --active -m report.md
-MCP_SEC_SCAN_TOKEN=... mcp-sec-scan https://example.com/mcp   # Tiefen-Checks mit Token
+MCP_SEC_SCAN_TOKEN=... mcp-sec-scan https://example.com/mcp   # deep checks with a token
 ```
 
-| Option | Bedeutung |
-|--------|-----------|
-| `--token <t>` | Bearer-Token für authentifizierte Tiefen-Checks (oder `MCP_SEC_SCAN_TOKEN`) |
-| `-m, --markdown <f>` | Markdown-Report schreiben |
-| `--json <f>` | Rohen JSON-Report schreiben |
-| `--sarif <f>` | SARIF-2.1.0-Report schreiben (GitHub Code Scanning / Security-Tab) |
-| `--active` | Aktive Proben aktivieren (kleiner Rate-Limit-Burst) — **erzeugt Last auf dem Ziel, siehe Rechtliches** |
-| `--passive` | **Beobachtungsmodus:** keine Anfrage an den MCP-Endpunkt selbst (siehe unten) |
-| `--timeout <ms>` | Timeout pro Request (Standard 10000) |
-| `--ci` | Exit `2` bei PROBLEM, `1` bei WARN, sonst `0` |
+| Option | Meaning |
+|--------|---------|
+| `--token <t>` | Bearer token for authenticated deep checks (or `MCP_SEC_SCAN_TOKEN`) |
+| `-m, --markdown <f>` | Write a Markdown report |
+| `--json <f>` | Write the raw JSON report |
+| `--sarif <f>` | Write a SARIF 2.1.0 report (GitHub Code Scanning / Security tab) |
+| `--active` | Enable active probes (small rate-limit burst) — **puts load on the target, see Legal** |
+| `--passive` | **Observation mode:** no request to the MCP endpoint itself (see below) |
+| `--timeout <ms>` | Timeout per request (default 10000) |
+| `--ci` | Exit `2` on PROBLEM, `1` on WARN, otherwise `0` |
 
-### `--passive` — Beobachtungsmodus ohne Auftrag
+### `--passive` — observation mode without a mandate
 
-Für den Fall, dass du **keine** Erlaubnis des Betreibers hast: Erhebungen über viele fremde Server,
-Ökosystem-Auswertungen, Vorab-Recherche. In diesem Modus laufen ausschließlich Prüfungen, die den
-MCP-Endpunkt selbst **nicht ansprechen**:
+For the case where you have **no** permission from the operator: surveys across many third-party
+servers, ecosystem research, preliminary work. In this mode only checks run that **never touch** the
+MCP endpoint itself:
 
-- Auswertung der URL (TLS)
+- inspection of the URL (TLS)
 - `GET /.well-known/oauth-protected-resource` (RFC 9728)
 - `GET /.well-known/oauth-authorization-server` (RFC 8414)
 
-Diese beiden Pfade werden von der Spezifikation genau dafür veröffentlicht, von unauthentifizierten
-Clients abgerufen zu werden — dieselbe Kategorie wie eine `robots.txt`. **Kein JSON-RPC, kein
-Handshake, keine Tool-Auflistung, keine provozierten Fehler, kein Burst.**
+Both paths are published by the specification precisely so unauthenticated clients can fetch them —
+the same category as a `robots.txt`. **No JSON-RPC, no handshake, no tool listing, no provoked errors,
+no burst.**
 
 ```bash
 mcp-sec-scan https://example.com/mcp --passive --json out.json
 ```
 
-Gemessen gegen einen protokollierenden Server, der unauthentifiziertes `initialize` ablehnt:
-**2 Requests** (beide `.well-known`) statt **7**, davon 5 direkt auf den Endpunkt. Lässt ein Server
-`initialize` dagegen offen — der Normalfall —, führt der Standardlauf den Handshake fort und kommt
-auf 7 Requests direkt am Endpunkt. Der Beobachtungsmodus bleibt in beiden Fällen bei 2, keiner davon
-am Endpunkt. Die neun nicht ausgeführten Checks erscheinen im Report als `SKIPPED` mit Begründung —
-bewusst sichtbar statt still weggelassen.
+Measured against a request-logging server that rejects an unauthenticated `initialize`: **2 requests**
+(both `.well-known`) instead of **7**, five of which go straight to the endpoint. If a server leaves
+`initialize` open — the normal case — the default run continues the handshake and reaches 7 requests
+directly at the endpoint. Observation mode stays at 2 in both cases, none of them at the endpoint. The
+nine checks that did not run appear in the report as `SKIPPED` with a reason — visible on purpose
+rather than silently dropped.
 
-⚠️ **Ein sauberes Ergebnis im Beobachtungsmodus sagt nichts über die Auth-Durchsetzung des Servers
-aus.** Ob `tools/list` ohne Token funktioniert, ist genau die Frage, die dieser Modus nicht stellt.
-Wer eine belastbare Aussage braucht, braucht den vollen Scan — und damit die Erlaubnis.
+⚠️ **A clean result in observation mode says nothing about the server's auth enforcement.** Whether
+`tools/list` works without a token is exactly the question this mode does not ask. Anyone who needs a
+defensible answer needs the full scan — and therefore the permission.
 
-`--passive` schließt `--active` und `--token` aus; beides bricht mit Exit-Code 1 ab.
+`--passive` is mutually exclusive with `--active` and `--token`; both combinations abort with exit
+code 1.
 
-## Beispiel-Ausgabe
+## Example output
 
 ```
 ❌ PROBLEM  Tool listing without authentication
@@ -116,22 +117,22 @@ Wer eine belastbare Aussage braucht, braucht den vollen Scan — und damit die E
     No OAuth authorization-server metadata found under standard .well-known paths.
 ```
 
-Ein vollständiger Beispiel-Report: [`examples/sample-report.md`](examples/sample-report.md).
+A full example report: [`examples/sample-report.md`](examples/sample-report.md).
 
-## Checks (12 Prüfungen)
+## Checks (12)
 
-1. TLS erzwungen (kein Klartext-HTTP)
-2. Authentifizierung erforderlich
-3. Security-Header (HSTS, `X-Content-Type-Options: nosniff`)
-4. Session-ID-Entropie (schwache/ratbare `mcp-session-id` → Session-Hijacking)
-5. Tool-Listing/-Nutzung ohne Authentifizierung
-6. OAuth-2.1-Metadaten & PKCE (S256)
-7. Protected Resource Metadata (RFC 9728) & Audience-Bindung (RFC 8707 — Token-Passthrough / Confused Deputy)
-8. Tool-Poisoning-Heuristik (Beschreibungen)
-9. CORS-Konfiguration (Wildcard + Credentials, Origin-Reflection)
-10. Origin-Header-Validierung (DNS-Rebinding, Streamable HTTP)
-11. Fehler-Ausführlichkeit (Stacktrace-/Secret-Leaks)
-12. Rate-Limiting (Burst-Heuristik, `--active`)
+1. TLS enforced (no cleartext HTTP)
+2. Authentication required
+3. Security headers (HSTS, `X-Content-Type-Options: nosniff`)
+4. Session-id entropy (weak/guessable `mcp-session-id` -> session hijacking)
+5. Tool listing/use without authentication
+6. OAuth 2.1 metadata & PKCE (S256)
+7. Protected resource metadata (RFC 9728) & audience binding (RFC 8707 — token pass-through / confused deputy)
+8. Tool-poisoning heuristic (descriptions)
+9. CORS configuration (wildcard + credentials, origin reflection)
+10. Origin header validation (DNS rebinding, Streamable HTTP)
+11. Error verbosity (stack trace / secret leaks)
+12. Rate limiting (burst heuristic, `--active`)
 
 ## GitHub Action
 
@@ -143,82 +144,80 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     permissions:
-      security-events: write   # nötig zum Hochladen von SARIF
+      security-events: write   # needed to upload SARIF
     steps:
       - uses: actions/checkout@v4
-      # Auf einen Commit-SHA pinnen, sobald ein Release-Tag steht — eine bewegliche Ref
-      # führt fremden Code in deiner CI aus, sobald sie sich ändert.
+      # Pin to a commit SHA once a release tag exists — a moving ref runs
+      # third-party code in your CI as soon as it changes.
       - uses: GuybrushUlyssesThreepwood/mcp-security-sec-scan/.github/actions/scan@main
         with:
           url: ${{ vars.MCP_SERVER_URL }}
           token: ${{ secrets.MCP_TOKEN }}
           ci: 'true'
       - name: Upload SARIF to the Security tab
-        if: always()   # auch bei fehlgeschlagenem Scan hochladen
+        if: always()   # upload even when the scan failed
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: mcp-sec-scan.sarif
 ```
 
-Findings erscheinen dann unter **Security → Code scanning**, ein Alert pro Check.
+Findings then show up under **Security -> Code scanning**, one alert per check.
 
-## Scope & Grenzen
+## Scope & limits
 
-Dies ist ein **externer** Scan ohne Schreibzugriff — im Standardlauf aber nicht rein beobachtend
-(Handshake, `tools/list`, provozierte Fehlerantwort; mit `--active` zusätzlich ein Burst).
-Rein beobachtend ist nur `--passive`. Er kann das Fehlen interner Probleme nicht beweisen —
-z. B. Mandantendaten-Leaks, Vollständigkeit des Audit-Logs oder Injection-Handling in Tool-Parametern.
-Dafür braucht es ein vollständiges Audit (mit Zugriff). Berichtet wird, was ein unauthentifizierter —
-oder Token-haltender — Client beobachten kann.
+This is an **external** scan without write access — but the default run is not purely observational
+(handshake, `tools/list`, provoked error response; with `--active` an additional burst). Only
+`--passive` is observation-only. It cannot prove the absence of internal problems — tenant data leaks,
+audit-log completeness or injection handling in tool parameters, for example. That needs a full audit
+(with access). What is reported is what an unauthenticated — or token-carrying — client can observe.
 
-## ⚠️ Rechtliches
+## ⚠️ Legal
 
-**Scanne nur Server, die dir gehören oder für die du ausdrücklich autorisiert bist.** Unaufgefordertes
-Scannen fremder Systeme kann rechtswidrig sein (in Deutschland u. a. §§ 202a ff., 303b StGB). Bei einem
-kostenlosen Scan vorab die dokumentierte Erlaubnis des Betreibers einholen.
+**Only scan servers you own or are explicitly authorised to test.** Unsolicited scanning of
+third-party systems may be unlawful (in Germany, among others, §§ 202a et seq. and § 303b of the
+Criminal Code). For a free scan, obtain the operator's documented permission first.
 
-**Schon der Standardlauf braucht die Erlaubnis, nicht erst `--active`.** Er spricht den MCP-Endpunkt
-selbst an: unauthentifizierter Handshake, `tools/list`, bewusst provozierte Fehlerantwort und eine
-Anfrage mit fremdem `Origin`-Header. Rein beobachtend ist ausschließlich `--passive`.
+**The default run already requires that permission, not just `--active`.** It addresses the MCP
+endpoint itself: unauthenticated handshake, `tools/list`, a deliberately provoked error response and a
+request carrying a foreign `Origin` header. Only `--passive` is purely observational.
 
-**`--active` braucht darüber hinaus eine eigene, ausdrückliche Erlaubnis.** Es sendet zusätzlich einen
-kurzen Anfragen-Burst, um Rate-Limiting zu erkennen — die einzige Prüfung, die messbare Last erzeugt
-und im ungünstigen Fall Alarme auslöst oder einen knapp dimensionierten Server beeinträchtigt. Deshalb
-ist sie standardmäßig aus. Nur einschalten, wenn die Erlaubnis das aktive Prüfen ausdrücklich abdeckt,
-und möglichst außerhalb von Lastspitzen.
+**`--active` needs a further, explicit permission on top.** It additionally sends a short request burst
+to detect rate limiting — the only check that puts measurable load on the target and that may, in the
+worst case, trigger alerts or degrade a tightly sized server. That is why it is off by default. Enable
+it only when the permission explicitly covers active probing, and preferably outside peak hours.
 
-**Dokumentiere die Erlaubnis, bevor du scannst** — wer, für welches Zielsystem, in welchem Zeitraum,
-mit oder ohne aktive Proben. Ohne diesen Nachweis fehlt im Streitfall die Grundlage, und
-Berufshaftpflichtversicherer decken Prüftätigkeiten regelmäßig nur mit Beauftragung und Berechtigung
-durch den Systembetreiber.
+**Document the permission before you scan** — who granted it, for which target system, for which
+period, with or without active probes. Without that record there is no basis in a dispute, and
+professional indemnity insurers regularly cover testing work only where the system operator has
+mandated and authorised it.
 
-## Tieferes Audit gewünscht?
+## Want a deeper audit?
 
-`mcp-sec-scan` ist der kostenlose Teaser. Ein vollständiges Festpreis-MCP-Security-Audit ergänzt die
-internen Checks (Mandantentrennung, Audit-Logging, Injection-Handling) plus Remediation-Schritte —
-vollständig asynchron, Report + Loom, keine Meetings. → **https://www.honrodt.de** (eigene Produkt-Domain folgt)
+`mcp-sec-scan` is the free teaser. A full fixed-price MCP security audit adds the internal checks
+(tenant isolation, audit logging, injection handling) plus remediation steps — fully asynchronous,
+report plus a recorded walkthrough, no meetings. -> **https://www.honrodt.de** (dedicated product
+domain to follow)
 
-## Anbieter
+## Provider
 
-Yimmie Honrodt, Einzelunternehmen, Köln — **Impressum und Anbieterkennzeichnung nach § 5 DDG:**
-https://honrodt.de/impressum · Kontakt: kontakt@honrodt.de
+Yimmie Honrodt, sole proprietorship, Cologne, Germany — **provider identification under § 5 DDG:**
+https://honrodt.de/impressum · Contact: kontakt@honrodt.de
 
-## Lizenz
+## License
 
 Apache-2.0
 
 ---
 
-## Haftung und Gewährleistung
+## Liability and warranty
 
-Dieses Projekt steht unter der **Apache-Lizenz 2.0** und wird ohne Mängelgewähr bereitgestellt
-(„AS IS", ohne Gewährleistungen oder Bedingungen gleich welcher Art). Eine Haftung für Schäden aus
-der Nutzung ist im gesetzlich zulässigen Rahmen ausgeschlossen — Einzelheiten in `LICENSE`,
-Abschnitte 7 und 8.
+This project is licensed under the **Apache License 2.0** and is provided as is ("AS IS", without
+warranties or conditions of any kind). Liability for damages arising from its use is excluded to the
+extent permitted by law — see `LICENSE`, sections 7 and 8, for details.
 
-**Ein Scan ersetzt keine vollständige Sicherheitsprüfung.** Er deckt die implementierten Prüfungen
-ab, nicht mehr. Ein Lauf ohne Befund bedeutet nicht, dass ein Server sicher ist. Die Verantwortung
-für Betrieb und Absicherung der geprüften Systeme bleibt beim Betreiber.
+**A scan does not replace a full security assessment.** It covers the checks it implements, no more.
+A run without findings does not mean a server is secure. Responsibility for operating and securing
+the scanned systems remains with the operator.
 
-**Fremde Systeme nur mit dokumentierter Erlaubnis des Betreibers prüfen.** Ohne Berechtigung kann
-schon ein Scan rechtswidrig sein.
+**Only test third-party systems with the operator's documented permission.** Without authorisation
+even a scan can be unlawful.

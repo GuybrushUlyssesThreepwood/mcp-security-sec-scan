@@ -6,17 +6,17 @@ export { SCANNER_VERSION } from "./version.js";
 import { SCANNER_VERSION } from "./version.js";
 
 const PASSIVE_SKIP_DETAIL =
-  "Übersprungen im Beobachtungsmodus (--passive). Dieser Check sendet Anfragen an den " +
+  "Skipped in observation mode (--passive). This check sends requests to the " +
   "MCP-Endpunkt selbst (JSON-RPC-Handshake, Tool-Auflistung, provozierte Fehler oder Burst) " +
-  "und läuft deshalb nur mit dokumentierter Erlaubnis des Betreibers.";
+  "and therefore only runs with the operator's documented permission.";
 
 export async function runScan(ctx: ScanContext): Promise<ScanReport> {
   const shared: SharedState = {};
   const findings: Finding[] = [];
 
   for (const check of CHECKS) {
-    // Beobachtungsmodus: alles überspringen, was den Endpunkt selbst anspricht. Bewusst als
-    // 'skipped' im Report statt stiller Auslassung — der Leser muss sehen, was NICHT geprüft wurde.
+    // Observation mode: skip everything that touches the endpoint itself. Deliberately reported
+    // as 'skipped' rather than silently dropped — the reader must see what was NOT checked.
     if (ctx.passive && !check.passiveSafe) {
       findings.push({
         id: check.id,

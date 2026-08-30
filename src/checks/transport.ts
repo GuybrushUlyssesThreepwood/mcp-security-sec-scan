@@ -1,4 +1,4 @@
-// Transport-/CORS-Checks: TLS-Erzwingung, CORS, Origin-Validierung, Sicherheits-Header, Session-ID-Entropie.
+// Transport/CORS checks: TLS enforcement, CORS, origin validation, security headers, session-id entropy.
 
 import type { Check, Finding, ScanContext, SharedState } from "../types.js";
 import { getUrl, postRpc, jsonRpc, initializeParams } from "../probe.js";
@@ -17,25 +17,25 @@ function safeProtocol(url: string): string {
 export const tlsEnforced: Check = {
   passiveSafe: true,
   id: "tls-enforced",
-  title: "TLS erzwungen (kein Klartext-HTTP)",
+  title: "TLS enforced (no cleartext HTTP)",
   async run(ctx: ScanContext): Promise<Finding[]> {
     let proto = "";
     try {
       proto = new URL(ctx.url).protocol;
     } catch {
-      return [{ id: this.id, title: this.title, severity: "info", detail: "URL nicht parsebar.", reference: REF }];
+      return [{ id: this.id, title: this.title, severity: "info", detail: "URL could not be parsed.", reference: REF }];
     }
     if (proto === "https:") {
       return [{
         id: this.id, title: this.title, severity: "pass",
-        detail: "Endpoint wird über HTTPS angesprochen.",
+        detail: "The endpoint is addressed over HTTPS.",
         reference: REF,
       }];
     }
     return [{
       id: this.id, title: this.title, severity: "problem",
-      detail: `Endpoint nutzt '${proto}' statt HTTPS. Tokens/Daten wären im Klartext übertragbar.`,
-      remediation: "Remote-MCP ausschließlich über HTTPS; HTTP auf HTTPS umleiten oder ablehnen.",
+      detail: `The endpoint uses '${proto}' instead of HTTPS. Tokens and data would travel in cleartext.`,
+      remediation: "Serve remote MCP over HTTPS only; redirect HTTP to HTTPS or refuse it.",
       reference: REF,
     }];
   },
@@ -43,9 +43,9 @@ export const tlsEnforced: Check = {
 
 export const corsConfig: Check = {
   id: "cors-config",
-  title: "CORS-Konfiguration",
+  title: "CORS configuration",
   async run(ctx: ScanContext): Promise<Finding[]> {
-    // Mit fremdem Origin anfragen und Reflection/Wildcard prüfen.
+    // Request with a foreign origin and check for reflection/wildcard.
     const evilOrigin = "https://mcp-sec-scan.example.attacker";
     const probe = await getUrl(ctx.url, ctx.timeoutMs, evilOrigin);
     const acao = probe.headers["access-control-allow-origin"];
@@ -54,36 +54,36 @@ export const corsConfig: Check = {
     if (!acao) {
       return [{
         id: this.id, title: this.title, severity: "pass",
-        detail: "Kein Access-Control-Allow-Origin für fremden Origin gesetzt (Browser-Cross-Origin blockiert).",
+        detail: "No Access-Control-Allow-Origin set for a foreign origin (browsers block cross-origin access).",
         reference: REF,
       }];
     }
     if (acao === "*" && acac === "true") {
       return [{
         id: this.id, title: this.title, severity: "problem",
-        detail: "ACAO '*' zusammen mit Allow-Credentials 'true' — unsichere Kombination (Credentials für jeden Origin).",
-        remediation: "Keine Wildcard mit Credentials. Origin-Allowlist verwenden.",
+        detail: "ACAO '*' together with Allow-Credentials 'true' — an unsafe combination (credentials for every origin).",
+        remediation: "No wildcard with credentials. Use an origin allow-list.",
         reference: REF,
       }];
     }
     if (acao === evilOrigin) {
       return [{
         id: this.id, title: this.title, severity: "warn",
-        detail: `Server spiegelt beliebigen Origin (${evilOrigin}) in ACAO wider — faktisch offenes CORS.`,
-        remediation: "Origin gegen feste Allowlist prüfen statt zu spiegeln.",
+        detail: `The server reflects an arbitrary origin (${evilOrigin}) in ACAO — effectively open CORS.`,
+        remediation: "Check the origin against a fixed allow-list instead of reflecting it.",
         reference: REF,
       }];
     }
     if (acao === "*") {
       return [{
         id: this.id, title: this.title, severity: "warn",
-        detail: "ACAO '*' (offenes CORS ohne Credentials). Bei rein tokenbasiertem Zugriff meist ok, aber bewusst setzen.",
+        detail: "ACAO '*' (open CORS without credentials). Usually fine for purely token-based access, but set it deliberately.",
         reference: REF,
       }];
     }
     return [{
       id: this.id, title: this.title, severity: "info",
-      detail: `ACAO gesetzt auf '${acao}'.`,
+      detail: `ACAO set to '${acao}'.`,
       reference: REF,
     }];
   },
@@ -91,10 +91,10 @@ export const corsConfig: Check = {
 
 export const originValidation: Check = {
   id: "origin-validation",
-  title: "Origin-Header-Validierung (DNS-Rebinding)",
+  title: "Origin header validation (DNS rebinding)",
   async run(ctx: ScanContext): Promise<Finding[]> {
-    // MCP Streamable HTTP: Server MÜSSEN den Origin-Header validieren, um DNS-Rebinding
-    // zu verhindern. Wir senden 'initialize' mit fremdem Origin und prüfen, ob abgewiesen wird.
+    // MCP Streamable HTTP: servers MUST validate the Origin header to prevent DNS rebinding.
+    // We send 'initialize' with a foreign origin and check whether it is refused.
     const evilOrigin = "https://dns-rebind.attacker.example";
     const probe = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), {
       timeoutMs: ctx.timeoutMs,
@@ -105,36 +105,36 @@ export const originValidation: Check = {
     if (probe.error) {
       return [{
         id: this.id, title: this.title, severity: "info",
-        detail: `Kein Ergebnis (Netzwerk/Timeout): ${probe.error}`,
+        detail: `No result (network/timeout): ${probe.error}`,
         reference: REF,
       }];
     }
     if (probe.status === 400 || probe.status === 403) {
       return [{
         id: this.id, title: this.title, severity: "pass",
-        detail: `Anfrage mit fremdem Origin (${evilOrigin}) abgewiesen (HTTP ${probe.status}).`,
+        detail: `Request with a foreign origin (${evilOrigin}) refused (HTTP ${probe.status}).`,
         reference: REF,
       }];
     }
     if (probe.status === 401) {
       return [{
         id: this.id, title: this.title, severity: "info",
-        detail: `Auth wird vor der Origin-Prüfung erzwungen (HTTP 401) — Origin-Validierung ist von außen nicht eindeutig prüfbar.`,
-        remediation: "Sicherstellen, dass der Origin serverseitig gegen eine Allowlist geprüft wird (auch für authentifizierte Anfragen).",
+        detail: `Auth is enforced before the origin check (HTTP 401) — origin validation cannot be verified unambiguously from the outside.`,
+        remediation: "Make sure the origin is checked against an allow-list server-side (for authenticated requests too).",
         reference: REF,
       }];
     }
     if (probe.status >= 200 && probe.status < 300) {
       return [{
         id: this.id, title: this.title, severity: "warn",
-        detail: `Server akzeptiert 'initialize' mit fremdem Origin (${evilOrigin}, HTTP ${probe.status}) ohne Abweisung. Die MCP-Streamable-HTTP-Spezifikation verlangt Origin-Validierung gegen DNS-Rebinding — besonders kritisch bei lokal oder im internen Netz erreichbaren Servern.`,
-        remediation: "Origin-Header gegen feste Allowlist prüfen und fremde Origins mit 403 ablehnen; Server nur an benötigte Interfaces binden.",
+        detail: `The server accepts 'initialize' with a foreign origin (${evilOrigin}, HTTP ${probe.status}) without refusing it. The MCP Streamable HTTP specification requires origin validation against DNS rebinding — especially critical for servers reachable locally or on an internal network.`,
+        remediation: "Check the Origin header against a fixed allow-list and refuse foreign origins with 403; bind the server only to the interfaces it needs.",
         reference: REF,
       }];
     }
     return [{
       id: this.id, title: this.title, severity: "info",
-      detail: `Unerwarteter Status auf 'initialize' mit fremdem Origin: HTTP ${probe.status}.`,
+      detail: `Unexpected status on 'initialize' with a foreign origin: HTTP ${probe.status}.`,
       reference: REF,
     }];
   },
@@ -142,11 +142,11 @@ export const originValidation: Check = {
 
 export const securityHeaders: Check = {
   id: "security-headers",
-  title: "Sicherheits-Header (HSTS, nosniff)",
+  title: "Security headers (HSTS, nosniff)",
   async run(ctx: ScanContext, shared: SharedState): Promise<Finding[]> {
-    // Wiederverwenden, was 'auth-required' bereits ermittelt hat; sonst selbst einmal proben.
-    // Ohne Token: das Ergebnis landet in shared.unauthInitialize, und 'resource-metadata' leitet
-    // daraus ab, ob der Server Auth erzwingt. Ein Token hier würde diese Ableitung verfälschen.
+    // Reuse what 'auth-required' already determined; otherwise probe once here.
+    // Without a token: the result lands in shared.unauthInitialize, and 'resource-metadata' infers
+    // from it whether the server enforces auth. A token here would distort that inference.
     let headers = shared.unauthInitialize?.headers;
     if (!headers) {
       const probe = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), {
@@ -158,7 +158,7 @@ export const securityHeaders: Check = {
     if (!headers || Object.keys(headers).length === 0) {
       return [{
         id: this.id, title: this.title, severity: "info",
-        detail: "Keine Antwort-Header ermittelbar (Server nicht erreichbar?).",
+        detail: "No response headers could be determined (server unreachable?).",
         reference: REF,
       }];
     }
@@ -171,20 +171,20 @@ export const securityHeaders: Check = {
     if (missing.length === 0) {
       return [{
         id: this.id, title: this.title, severity: "pass",
-        detail: `Sicherheits-Header vorhanden${isHttps ? " (inkl. HSTS)" : ""}.`,
+        detail: `Security headers present${isHttps ? " (including HSTS)" : ""}.`,
         reference: REF,
       }];
     }
     return [{
       id: this.id, title: this.title, severity: "warn",
-      detail: `Fehlende Sicherheits-Header: ${missing.join(", ")}.`,
-      remediation: "Über HTTPS 'Strict-Transport-Security: max-age=15552000; includeSubDomains' setzen und 'X-Content-Type-Options: nosniff' senden.",
+      detail: `Missing security headers: ${missing.join(", ")}.`,
+      remediation: "Over HTTPS, set 'Strict-Transport-Security: max-age=15552000; includeSubDomains' and send 'X-Content-Type-Options: nosniff'.",
       reference: REF,
     }];
   },
 };
 
-/** Shannon-Entropie je Zeichen (bit). Grobes Maß für Zufälligkeit einer Session-ID. */
+/** Shannon entropy per character (bits). A rough measure of how random a session id is. */
 function shannonBitsPerChar(s: string): number {
   const freq = new Map<string, number>();
   for (const ch of s) freq.set(ch, (freq.get(ch) ?? 0) + 1);
@@ -196,32 +196,32 @@ function shannonBitsPerChar(s: string): number {
   return h;
 }
 
-/** Gibt einen Grund zurück, wenn die Session-ID schwach wirkt, sonst null. Bewusst konservativ. */
+/** Returns a reason when the session id looks weak, otherwise null. Deliberately conservative. */
 function assessSessionId(sid: string): string | null {
-  if (sid.length < 16) return `zu kurz (${sid.length} Zeichen, < 16)`;
-  if (/^[0-9]+$/.test(sid)) return "nur Ziffern (leicht ratbar/sequentiell)";
-  if (/session|sess-|test|demo|token|admin|default|guest/i.test(sid)) return "enthält vorhersagbares Klartext-Wort";
+  if (sid.length < 16) return `too short (${sid.length} characters, < 16)`;
+  if (/^[0-9]+$/.test(sid)) return "digits only (easily guessed/sequential)";
+  if (/session|sess-|test|demo|token|admin|default|guest/i.test(sid)) return "contains a predictable plaintext word";
   const distinct = new Set(sid).size;
-  if (distinct < 8) return `geringe Zeichenvielfalt (nur ${distinct} verschiedene Zeichen)`;
+  if (distinct < 8) return `low character variety (only ${distinct} distinct characters)`;
   const bits = shannonBitsPerChar(sid);
-  if (bits < 2.5) return `niedrige Entropie (${bits.toFixed(1)} bit/Zeichen)`;
+  if (bits < 2.5) return `low entropy (${bits.toFixed(1)} bits/character)`;
   return null;
 }
 
-/** Session-ID nicht im Klartext ausgeben (könnte auf einem echten Ziel ein aktives Token sein). */
+/** Never echo the session id in full (on a real target it may be an active token). */
 function redactSid(sid: string): string {
-  return `${sid.slice(0, 4)}…, ${sid.length} Zeichen`;
+  return `${sid.slice(0, 4)}…, ${sid.length} characters`;
 }
 
 export const sessionIdEntropy: Check = {
   id: "session-id-entropy",
-  title: "Session-ID Unvorhersagbarkeit (mcp-session-id)",
+  title: "Session-id unpredictability (mcp-session-id)",
   async run(ctx: ScanContext, shared: SharedState): Promise<Finding[]> {
-    // MCP Streamable HTTP: Session-IDs MÜSSEN kryptographisch sicher sein (sonst Session-Hijacking).
-    // Bevorzugt die bereits gesehene initialize-Antwort nutzen; nur andernfalls selbst einmal proben.
+    // MCP Streamable HTTP: session ids MUST be cryptographically secure (otherwise session hijacking).
+    // Prefer the initialize response already seen; probe once here only if there is none.
     let headers = shared.unauthInitialize?.headers;
     if (!shared.unauthInitialize) {
-      // Ohne Token — siehe Begründung im 'security-headers'-Check.
+      // Without a token — see the reasoning in the 'security-headers' check.
       const probe = await postRpc(ctx.url, jsonRpc("initialize", initializeParams()), {
         timeoutMs: ctx.timeoutMs,
       });
@@ -233,7 +233,7 @@ export const sessionIdEntropy: Check = {
     if (!sid) {
       return [{
         id: this.id, title: this.title, severity: "info",
-        detail: "Server vergibt keine 'mcp-session-id' im Antwort-Header (vermutlich zustandslos) — kein über den Header ratbarer Session-Vektor.",
+        detail: "The server issues no 'mcp-session-id' response header (likely stateless) — no session vector guessable from the header.",
         reference: REF_SESSION,
       }];
     }
@@ -242,14 +242,14 @@ export const sessionIdEntropy: Check = {
     if (weak) {
       return [{
         id: this.id, title: this.title, severity: "warn",
-        detail: `Ausgegebene 'mcp-session-id' (${redactSid(sid)}) wirkt schwach: ${weak}. Ratbar/erzwingbar → Risiko Session-Hijacking.`,
-        remediation: "Kryptographisch sichere Session-IDs verwenden (CSPRNG, ≥128 Bit Entropie, z. B. crypto.randomUUID); nicht sequentiell oder aus Klartext ableiten.",
+        detail: `The issued 'mcp-session-id' (${redactSid(sid)}) looks weak: ${weak}. Guessable or brute-forceable -> risk of session hijacking.`,
+        remediation: "Use cryptographically secure session ids (CSPRNG, >=128 bits of entropy, e.g. crypto.randomUUID); do not derive them sequentially or from plaintext.",
         reference: REF_SESSION,
       }];
     }
     return [{
       id: this.id, title: this.title, severity: "pass",
-      detail: `Ausgegebene 'mcp-session-id' hat ausreichende Länge/Entropie (${sid.length} Zeichen, hohe Zeichenvielfalt).`,
+      detail: `The issued 'mcp-session-id' has sufficient length and entropy (${sid.length} characters, high character variety).`,
       reference: REF_SESSION,
     }];
   },

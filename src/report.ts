@@ -72,11 +72,11 @@ export function toMarkdown(report: ScanReport): string {
   if (report.mode === "passive") {
     md.push(
       "> **Beobachtungsmodus.** Es wurde keine Anfrage an den MCP-Endpunkt selbst gesendet — " +
-        "geprüft wurden ausschließlich die URL und die standardisierten `.well-known`-Discovery-Pfade " +
-        "(RFC 8414 / RFC 9728), die dafür veröffentlicht werden, unauthentifiziert abgerufen zu werden. " +
+        "only the URL and the standardised `.well-known` discovery paths were inspected " +
+        "(RFC 8414 / RFC 9728), which are published to be fetched unauthenticated. " +
         "Kein Handshake, keine Tool-Auflistung, keine provozierten Fehler, kein Burst. " +
-        "**Ein sauberes Ergebnis in diesem Modus sagt nichts über die Auth-Durchsetzung des Servers aus** — " +
-        "dafür braucht es einen vollständigen Scan mit Erlaubnis des Betreibers."
+        "**A clean result in this mode says nothing about the server's auth enforcement** — " +
+        "that requires a full scan with the operator's permission."
     );
     md.push("");
   }
@@ -127,7 +127,7 @@ function sarifLevel(sev: Severity): "error" | "warning" | "note" {
 }
 
 /**
- * SARIF 2.1.0 für GitHub Code Scanning (Security-Tab). pass/skipped werden
+ * SARIF 2.1.0 for GitHub Code Scanning (Security tab). pass/skipped are
  * ausgelassen — nur echte Findings (problem/warn/info) werden als Results emittiert.
  */
 export function toSarif(report: ScanReport): unknown {
@@ -183,7 +183,7 @@ export function toSarif(report: ScanReport): unknown {
   };
 }
 
-/** Exit-Code: 2 bei mindestens einem Problem, 1 bei nur Warnungen, sonst 0. Für CI-Gates. */
+/** Exit code: 2 on at least one problem, 1 on warnings only, otherwise 0. For CI gates. */
 export function exitCode(report: ScanReport): number {
   if (report.summary.problem > 0) return 2;
   if (report.summary.warn > 0) return 1;

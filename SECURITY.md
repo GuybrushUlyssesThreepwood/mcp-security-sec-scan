@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 If you find a security issue in `mcp-sec-scan` itself, please report it **privately**:
 
-- Email: **kontakt@honrodt.de** (Geschäftsadresse; eine eigene Produkt-Domain folgt)
+- Email: **kontakt@honrodt.de** (business address; a dedicated product domain will follow)
 - Provider identification (Impressum, § 5 DDG): https://honrodt.de/impressum
 - Or use GitHub's **private vulnerability reporting** (Security tab → "Report a vulnerability").
 

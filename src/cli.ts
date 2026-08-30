@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// mcp-sec-scan CLI — externer Security-Scan für Remote-MCP-Server (Streamable HTTP).
+// mcp-sec-scan CLI — external security scan for remote MCP servers (Streamable HTTP).
 
 import { writeFile } from "node:fs/promises";
 import { runScan, SCANNER_VERSION } from "./scanner.js";
@@ -93,28 +93,28 @@ async function main() {
   // der andere erzeugt bewusst Last darauf. Hart abbrechen statt still eines gewinnen zu lassen —
   // wer beides tippt, hat eine falsche Vorstellung davon, was gleich passiert.
   if (args.passive && args.active) {
-    console.error("Fehler: --passive und --active schließen sich aus. --passive sendet keine Anfrage an den Endpunkt, --active erzeugt bewusst Last darauf.");
+    console.error("Error: --passive and --active are mutually exclusive. --passive sends no request to the endpoint, --active deliberately puts load on it.");
     process.exitCode = 1;
     return;
   }
   if (args.passive && args.token) {
-    console.error("Fehler: --passive und --token schließen sich aus. Ein Token bedeutet, dass du autorisiert bist — dann ist der Beobachtungsmodus nicht nötig.");
+    console.error("Error: --passive and --token are mutually exclusive. A token means you are authorised — then observation mode is not needed.");
     process.exitCode = 1;
     return;
   }
 
-  // Nur http/https. Sonst würde ein 'file:'- oder 'data:'-Ziel bis in die Checks durchlaufen und
+  // http/https only. Otherwise a 'file:' or 'data:' target would run all the way into the checks and
   // dort als Netzwerkfehler auftauchen, statt als das was es ist: eine unbrauchbare Eingabe.
   let scheme: string;
   try {
     scheme = new URL(args.url!).protocol;
   } catch {
-    console.error(`Fehler: '${args.url}' ist keine gültige URL.`);
+    console.error(`Error: '${args.url}' is not a valid URL.`);
     process.exitCode = 1;
     return;
   }
   if (scheme !== "http:" && scheme !== "https:") {
-    console.error(`Fehler: Schema '${scheme}' wird nicht unterstützt. Erwartet wird ein http(s)-MCP-Endpunkt.`);
+    console.error(`Error: scheme '${scheme}' is not supported. An http(s) MCP endpoint is expected.`);
     process.exitCode = 1;
     return;
   }
@@ -147,7 +147,7 @@ async function main() {
   // process.exitCode statt process.exit(): Node beendet erst, wenn stdout geflusht und
   // offene Handles geschlossen sind. Ein hartes process.exit() kann auf Windows mit
   // Node 24 mit dem Teardown offener Sockets/Pipes kollidieren (libuv-Assertion) und den
-  // Exit-Code verfälschen — genau der, auf den ein CI-Gate sich verlässt.
+  // corrupt the exit code — the very one a CI gate relies on.
   if (args.ci) process.exitCode = exitCode(report);
 }
 

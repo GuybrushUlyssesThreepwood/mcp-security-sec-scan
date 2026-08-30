@@ -1,4 +1,4 @@
-// Einzige Quelle der Wahrheit für die Scanner-Version.
+// Single source of truth for the scanner version.
 // Wird von scanner.ts (Report), probe.ts (clientInfo) und cli.ts (Re-Export) genutzt,
 // damit die Version nicht an mehreren Stellen driftet. package.json manuell synchron halten.
 

@@ -1,5 +1,5 @@
-// Rate-Limiting-Heuristik (aktiver, aber zerstörungsfreier Probe).
-// Nur wenn --active gesetzt ist: kleiner Burst harmloser 'initialize'-Requests.
+// Rate-limiting heuristic (an active but non-destructive probe).
+// Only when --active is set: a small burst of harmless 'initialize' requests.
 
 import type { Check, Finding, ScanContext } from "../types.js";
 import { initializeParams, jsonRpc, postRpc } from "../probe.js";
@@ -9,12 +9,12 @@ const BURST = 12;
 
 export const rateLimiting: Check = {
   id: "rate-limiting",
-  title: "Rate-Limiting (Burst-Heuristik)",
+  title: "Rate limiting (burst heuristic)",
   async run(ctx: ScanContext): Promise<Finding[]> {
     if (!ctx.activeProbes) {
       return [{
         id: this.id, title: this.title, severity: "skipped",
-        detail: "Übersprungen (aktive Probes aus). Mit --active einen kleinen Burst senden, um 429/Drosselung zu prüfen.",
+        detail: "Skipped (active probes off). Use --active to send a small burst and test for 429/throttling.",
         reference: REF,
       }];
     }
@@ -30,14 +30,14 @@ export const rateLimiting: Check = {
     if (throttled > 0) {
       return [{
         id: this.id, title: this.title, severity: "pass",
-        detail: `Burst von ${BURST} Requests: ${throttled}× HTTP 429${retryAfter ? ` (Retry-After: ${retryAfter})` : ""}. Drosselung aktiv.`,
+        detail: `Burst of ${BURST} requests: ${throttled}x HTTP 429${retryAfter ? ` (Retry-After: ${retryAfter})` : ""}. Throttling is active.`,
         reference: REF,
       }];
     }
     return [{
       id: this.id, title: this.title, severity: "warn",
-      detail: `Burst von ${BURST} Requests ohne einzige 429-Antwort. Kein von außen erkennbares Rate-Limiting (Heuristik — evtl. höhere Schwelle).`,
-      remediation: "Rate-Limits pro Tenant/Client/Tool und Budget-Caps für teure Operationen einführen.",
+      detail: `Burst of ${BURST} requests without a single 429 response. No externally detectable rate limiting (heuristic — the threshold may simply be higher).`,
+      remediation: "Introduce rate limits per tenant/client/tool and budget caps for expensive operations.",
       reference: REF,
     }];
   },

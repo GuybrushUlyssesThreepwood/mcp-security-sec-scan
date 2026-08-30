@@ -1,5 +1,5 @@
-// Registrierte Checks in Ausführungsreihenfolge.
-// 12 fokussierte Auth-/Tenancy-/Transport-Checks, soweit von außen prüfbar.
+// Registered checks, in execution order.
+// 12 focused auth/tenancy/transport checks, as far as they are verifiable from the outside.
 
 import type { Check } from "../types.js";
 import { authRequired, oauthMetadataPkce, resourceMetadata, errorVerbosity } from "./auth.js";
@@ -10,11 +10,11 @@ import { rateLimiting } from "./ratelimit.js";
 export const CHECKS: Check[] = [
   tlsEnforced,
   authRequired,
-  securityHeaders, // nutzt shared.unauthInitialize aus authRequired
-  sessionIdEntropy, // nutzt shared.unauthInitialize aus authRequired
+  securityHeaders, // uses shared.unauthInitialize from authRequired
+  sessionIdEntropy, // uses shared.unauthInitialize from authRequired
   unauthTools,
-  oauthMetadataPkce, // lädt/cached shared.prm
-  resourceMetadata, // nutzt shared.prm + WWW-Authenticate aus authRequired
+  oauthMetadataPkce, // loads/caches shared.prm
+  resourceMetadata, // uses shared.prm + WWW-Authenticate from authRequired
   toolPoisoning,
   corsConfig,
   originValidation,

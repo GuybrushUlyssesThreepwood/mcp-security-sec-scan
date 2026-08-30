@@ -1,6 +1,6 @@
-// Low-level HTTP-Probing für MCP Streamable HTTP Endpunkte.
-// Bewusst SDK-unabhängig: Wir wollen rohe Statuscodes/Header/Bodies sehen (401, WWW-Authenticate,
-// CORS, Fehler-Verbosity) — genau das prüft ein externer Security-Scan.
+// Low-level HTTP probing for MCP Streamable HTTP endpoints.
+// Deliberately SDK-free: we want to see raw status codes, headers and bodies (401, WWW-Authenticate,
+// CORS, error verbosity) — exactly what an external security scan inspects.
 
 import type { ProbeResult } from "./types.js";
 import { SCANNER_VERSION } from "./version.js";
@@ -38,7 +38,7 @@ function parseMaybeSse(contentType: string, text: string): unknown {
         try {
           return JSON.parse(payload);
         } catch {
-          /* nächstes Frame versuchen */
+          /* try the next frame */
         }
       }
     }

@@ -1,8 +1,8 @@
 # MCP Security Scan Report
 
 **Target:** `http://127.0.0.1:8971/`  
-**Scanned:** 2026-08-29T20:54:25.582Z  
-**Scanner:** mcp-sec-scan v1.3.0  
+**Scanned:** 2026-08-30T09:29:16.009Z  
+**Scanner:** mcp-sec-scan v1.3.1  
 **Mode:** standard (external scan)
 
 ## Summary
@@ -17,98 +17,98 @@
 
 ## Findings
 
-### ❌ PROBLEM — TLS erzwungen (kein Klartext-HTTP)
+### ❌ PROBLEM — TLS enforced (no cleartext HTTP)
 
-Endpoint nutzt 'http:' statt HTTPS. Tokens/Daten wären im Klartext übertragbar.
+The endpoint uses 'http:' instead of HTTPS. Tokens and data would travel in cleartext.
 
-**Remediation:** Remote-MCP ausschließlich über HTTPS; HTTP auf HTTPS umleiten oder ablehnen.
+**Remediation:** Serve remote MCP over HTTPS only; redirect HTTP to HTTPS or refuse it.
 
 _Reference: MCP Security Checklist #15_
 
-### ❌ PROBLEM — Tool-Auflistung ohne Authentifizierung
+### ❌ PROBLEM — Tool listing without authentication
 
-tools/list ohne Token erfolgreich (2 Tools sichtbar). Der Server verlangt keine Authentifizierung für die Tool-Nutzung.
+tools/list without a token succeeded (2 tools visible). The server requires no auth for tool use.
 
-**Remediation:** OAuth 2.1 für alle Tool-Operationen erzwingen; unauthentifizierte Requests mit 401 abweisen.
+**Remediation:** Enforce OAuth 2.1 for all tool operations; reject unauthenticated requests with 401.
 
 _Reference: MCP Security Checklist #1_
 
-### ❌ PROBLEM — Tool-Poisoning-Heuristik (Beschreibungen)
+### ❌ PROBLEM — Tool poisoning heuristic
 
-Verdächtige Muster in 1 Tool-Beschreibung(en):  
-- read_notes: Instruktions-Override, Verschleierungs-Anweisung, Exfiltrations-Hinweis, Secret-/Dateipfad-Referenz
+Suspicious patterns in 1 tool description(s):  
+- read_notes: instruction-override, concealment instruction, exfiltration hint, secret path
 
-**Remediation:** Tool-Metadaten kuratieren/sanitizen; Beschreibungen versionieren (Rug-Pull-Schutz); untrusted content markieren.
+**Remediation:** Curate and sanitise tool metadata; version descriptions (rug-pull protection); mark untrusted content.
 
 _Reference: MCP Security Checklist #9 Tool Poisoning_
 
-### ❌ PROBLEM — CORS-Konfiguration
+### ❌ PROBLEM — CORS configuration
 
-ACAO '*' zusammen mit Allow-Credentials 'true' — unsichere Kombination (Credentials für jeden Origin).
+ACAO '*' together with Allow-Credentials 'true' — an unsafe combination (credentials for every origin).
 
-**Remediation:** Keine Wildcard mit Credentials. Origin-Allowlist verwenden.
+**Remediation:** No wildcard with credentials. Use an origin allow-list.
 
 _Reference: MCP Security Checklist #15_
 
-### ❌ PROBLEM — Fehler-Verbosity (Stacktraces/Secrets)
+### ❌ PROBLEM — Error verbosity (stack traces/secrets)
 
-Fehlerantwort enthält verräterische Details (Muster: /traceback \(most recent call last\)/). Kann Pfade/Interna/Secrets preisgeben.
+The error response contains revealing details (pattern: /traceback \(most recent call last\)/). It can expose paths, internals or secrets.
 
-**Remediation:** Nach außen generische Fehler; Details nur intern loggen. Secrets redigieren.
+**Remediation:** Return generic errors outward; log details internally only. Redact secrets.
 
 _Reference: MCP Security Checklist A1/A2/A6, B_
 
-### ⚠️  WARN — Sicherheits-Header (HSTS, nosniff)
+### ⚠️  WARN — Security headers (HSTS, nosniff)
 
-Fehlende Sicherheits-Header: X-Content-Type-Options: nosniff.
+Missing security headers: X-Content-Type-Options: nosniff.
 
-**Remediation:** Über HTTPS 'Strict-Transport-Security: max-age=15552000; includeSubDomains' setzen und 'X-Content-Type-Options: nosniff' senden.
+**Remediation:** Over HTTPS, set 'Strict-Transport-Security: max-age=15552000; includeSubDomains' and send 'X-Content-Type-Options: nosniff'.
 
 _Reference: MCP Security Checklist #15_
 
-### ⚠️  WARN — Session-ID Unvorhersagbarkeit (mcp-session-id)
+### ⚠️  WARN — Session-id unpredictability (mcp-session-id)
 
-Ausgegebene 'mcp-session-id' (test…, 12 Zeichen) wirkt schwach: zu kurz (12 Zeichen, < 16). Ratbar/erzwingbar → Risiko Session-Hijacking.
+The issued 'mcp-session-id' (test…, 12 characters) looks weak: too short (12 characters, < 16). Guessable or brute-forceable -> risk of session hijacking.
 
-**Remediation:** Kryptographisch sichere Session-IDs verwenden (CSPRNG, ≥128 Bit Entropie, z. B. crypto.randomUUID); nicht sequentiell oder aus Klartext ableiten.
+**Remediation:** Use cryptographically secure session ids (CSPRNG, >=128 bits of entropy, e.g. crypto.randomUUID); do not derive them sequentially or from plaintext.
 
 _Reference: MCP Security Checklist Session-Hijacking_
 
-### ⚠️  WARN — OAuth 2.1 Metadaten & PKCE (S256)
+### ⚠️  WARN — OAuth 2.1 metadata & PKCE (S256)
 
-Keine OAuth-Authorization-Server-Metadaten unter den Standard-.well-known-Pfaden gefunden. Entweder kein OAuth (bei Remote-Servern problematisch) oder abweichender Discovery-Pfad.
+No OAuth authorization-server metadata found under standard .well-known paths. Either no OAuth (problematic for remote servers) or a non-standard discovery path.
 
-**Remediation:** Für Remote-MCP OAuth 2.1 mit veröffentlichten Metadaten (RFC 8414/9728) bereitstellen.
+**Remediation:** Provide OAuth 2.1 with published metadata (RFC 8414/9728) for remote MCP.
 
 _Reference: MCP Security Checklist A1/A2/A6, B_
 
-### ⚠️  WARN — Origin-Header-Validierung (DNS-Rebinding)
+### ⚠️  WARN — Origin header validation (DNS rebinding)
 
-Server akzeptiert 'initialize' mit fremdem Origin (https://dns-rebind.attacker.example, HTTP 200) ohne Abweisung. Die MCP-Streamable-HTTP-Spezifikation verlangt Origin-Validierung gegen DNS-Rebinding — besonders kritisch bei lokal oder im internen Netz erreichbaren Servern.
+The server accepts 'initialize' with a foreign origin (https://dns-rebind.attacker.example, HTTP 200) without refusing it. The MCP Streamable HTTP specification requires origin validation against DNS rebinding — especially critical for servers reachable locally or on an internal network.
 
-**Remediation:** Origin-Header gegen feste Allowlist prüfen und fremde Origins mit 403 ablehnen; Server nur an benötigte Interfaces binden.
+**Remediation:** Check the Origin header against a fixed allow-list and refuse foreign origins with 403; bind the server only to the interfaces it needs.
 
 _Reference: MCP Security Checklist #15_
 
-### ⚠️  WARN — Rate-Limiting (Burst-Heuristik)
+### ⚠️  WARN — Rate limiting (burst heuristic)
 
-Burst von 12 Requests ohne einzige 429-Antwort. Kein von außen erkennbares Rate-Limiting (Heuristik — evtl. höhere Schwelle).
+Burst of 12 requests without a single 429 response. No externally detectable rate limiting (heuristic — the threshold may simply be higher).
 
-**Remediation:** Rate-Limits pro Tenant/Client/Tool und Budget-Caps für teure Operationen einführen.
+**Remediation:** Introduce rate limits per tenant/client/tool and budget caps for expensive operations.
 
 _Reference: MCP Security Checklist #12 Rate-Limiting_
 
-### ℹ️  INFO — Authentifizierung erzwungen
+### ℹ️  INFO — Authentication enforced
 
-Server antwortet auf 'initialize' ohne Token (HTTP 200). Für sich genommen unkritisch — entscheidend ist, ob Tool-Aufrufe ohne Token möglich sind (siehe Check 'unauth-tools').
+Server answers 'initialize' without a token (HTTP 200). Harmless in itself — what matters is whether tool calls are possible without a token (see the 'unauth-tools' check).
 
 _Reference: MCP Security Checklist A1/A2/A6, B_
 
-### ℹ️  INFO — Protected Resource Metadata (RFC 9728) & Audience-Bindung
+### ℹ️  INFO — Protected resource metadata (RFC 9728) & audience binding
 
-Keine RFC-9728-Protected-Resource-Metadaten gefunden. Bei einem tokengeschützten Remote-MCP-Server per Spec erwartet — hier wird aber keine Auth erzwungen, daher nur informativ.
+No RFC 9728 protected resource metadata found. The spec expects it for a token-protected remote MCP server — but no auth is enforced here, so this is informational only.
 
-**Remediation:** Falls OAuth-geschützt: RFC-9728-Metadaten (resource + authorization_servers) veröffentlichen.
+**Remediation:** If OAuth-protected: publish RFC 9728 metadata (resource + authorization_servers).
 
 _Reference: MCP Security Checklist A2/A6 (Token-Audience, RFC 8707/9728)_
 

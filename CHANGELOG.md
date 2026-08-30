@@ -9,6 +9,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/); this project us
 > those versions was ever published to a package registry — the first published release is 1.3.0
 > (2026-08-29), so no released artifact carries the wrong history.
 
+## [Unreleased]
+### Changed
+- **Documentation and report output are now English.** README, the example report, code comments and
+  every finding title, detail and remediation string were German, in a project addressed at an
+  international audience — the README described the tool in one language while a run answered in
+  another. Check ids, references and severities are unchanged, but the human-readable text of every
+  finding differs; anything grepping report text for German strings needs updating.
+
 ## [1.3.1] - 2026-08-29
 ### Fixed
 - README install section. 1.3.0 was published carrying a README that said the package was not

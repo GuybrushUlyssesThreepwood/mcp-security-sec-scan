@@ -1,5 +1,5 @@
-// Network-freie Unit-Tests für die reinen Bausteine.
-// Der Integrations-Selbsttest (Scanner gegen den Vulnerable-Server) läuft in CI (.github/workflows/ci.yml).
+// Network-free unit tests for the pure building blocks.
+// The integration self-test (scanner against the vulnerable server) runs in CI (.github/workflows/ci.yml).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -104,7 +104,7 @@ test("toSarif emits valid 2.1.0 shape, maps levels, drops pass/skipped", () => {
 });
 
 test("unauth-tools handles unreachable server gracefully (no throw)", async () => {
-  // Nicht auflösbarer Host -> Check darf nicht werfen, sondern info liefern.
+  // Unresolvable host -> the check must not throw, it must return info.
   const ctx: ScanContext = { url: "http://127.0.0.1:9/mcp", timeoutMs: 400, activeProbes: false };
   const findings = await unauthTools.run(ctx, {});
   assert.equal(findings.length >= 1, true);
@@ -156,7 +156,7 @@ test("resource-metadata passes with resource + authorization_servers and WWW-Aut
   };
   const findings = await resourceMetadata.run(baseCtx, shared);
   assert.equal(findings[0].severity, "pass");
-  assert.match(findings[0].detail, /Resource-Metadaten/);
+  assert.match(findings[0].detail, /resource metadata/);
 });
 
 test("resource-metadata warns when PRM lacks a resource (no audience binding)", async () => {
@@ -220,7 +220,7 @@ test("runScan aggregates a summary without throwing on a dead target", async () 
 });
 
 // --- Regressionstests zu den False Positives aus 1.3.0 -----------------------------------------
-// Diese brauchen einen echten Socket: der Fehler saß in der Auswertung der HTTP-Antwort, nicht in
+// These need a real socket: the bug sat in how the HTTP response was evaluated, not in
 // einer reinen Funktion. Server laufen auf einem Ephemeral-Port und werden je Test beendet.
 
 import { createServer, type Server } from "node:http";
@@ -262,7 +262,7 @@ test("unauth-tools treats a JSON-RPC error over HTTP 200 as a refusal, not as a 
     async (url) => {
       const findings = await unauthTools.run({ ...baseCtx, url }, {});
       assert.equal(findings[0].severity, "pass");
-      assert.match(findings[0].detail, /abgewiesen/);
+      assert.match(findings[0].detail, /refused/);
     }
   );
 });
@@ -279,7 +279,7 @@ test("unauth-tools still reports an actually reachable tool list as a problem", 
     async (url) => {
       const findings = await unauthTools.run({ ...baseCtx, url }, {});
       assert.equal(findings[0].severity, "problem");
-      assert.match(findings[0].detail, /2 Tools/);
+      assert.match(findings[0].detail, /2 tools/);
     }
   );
 });
@@ -293,7 +293,7 @@ test("oauth-metadata-pkce ignores a catch-all that answers every path with 200 J
       const findings = await oauthMetadataPkce.run({ ...baseCtx, url }, {});
       assert.equal(findings.length, 1);
       assert.equal(findings[0].severity, "warn");
-      assert.match(findings[0].detail, /Keine OAuth-Authorization-Server-Metadaten/);
+      assert.match(findings[0].detail, /No OAuth authorization-server metadata/);
     }
   );
 });

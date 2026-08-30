@@ -1,9 +1,9 @@
-// Kern-Datentypen für mcp-sec-scan.
+// Core data types for mcp-sec-scan.
 
 export type Severity = "pass" | "info" | "warn" | "problem" | "skipped";
 
 export interface Finding {
-  /** Check-ID, z. B. "auth-required". Stabil, für Report-Referenzen. */
+  /** Check id, e.g. "auth-required". Stable, used for report references. */
   id: string;
   /** Menschliche Kurzbezeichnung. */
   title: string;
@@ -19,18 +19,18 @@ export interface Finding {
 export interface ScanContext {
   /** Ziel-URL des MCP-Servers (Streamable HTTP Endpoint). */
   url: string;
-  /** Optionales Bearer-Token für authentifizierte Tiefenchecks. */
+  /** Optional bearer token for authenticated deep checks. */
   token?: string;
   /** Netzwerk-Timeout je Request (ms). */
   timeoutMs: number;
-  /** true = zerstörungsfreie Extra-Probes (z. B. Rate-Limit-Burst) erlaubt. */
+  /** true = non-destructive extra probes (e.g. the rate-limit burst) are allowed. */
   activeProbes: boolean;
   /**
-   * true = Beobachtungsmodus. Es laufen ausschließlich Checks, die keine Anfrage an den
+   * true = observation mode. Only checks run that send no request to the
    * MCP-Endpunkt selbst senden: Auswertung der URL sowie GETs auf die standardisierten
-   * `.well-known`-Discovery-Pfade (RFC 8414 / RFC 9728), die genau dafür veröffentlicht werden,
+   * `.well-known` discovery paths (RFC 8414 / RFC 9728), which are published precisely to be
    * unauthentifiziert abgerufen zu werden. Kein JSON-RPC, kein Handshake, keine Tool-Auflistung,
-   * keine provozierten Fehler, kein Burst. Für Erhebungen über fremde Server ohne Einzelauftrag.
+   * no provoked errors, no burst. For surveys across third-party servers without a mandate.
    */
   passive: boolean;
 }
@@ -40,7 +40,7 @@ export interface Check {
   id: string;
   title: string;
   /**
-   * true = der Check sendet keine Anfrage an den MCP-Endpunkt selbst und läuft daher auch im
+   * true = the check sends no request to the MCP endpoint itself and therefore also runs in
    * Beobachtungsmodus (`--passive`). Erlaubt sind nur URL-Auswertung und GETs auf
    * `.well-known`-Discovery-Pfade. Fehlt das Flag, gilt der Check als nicht passiv.
    */
@@ -66,7 +66,7 @@ export interface ProbeResult {
   headers: Record<string, string>;
   /** Geparster JSON-RPC-Body (falls vorhanden). */
   json?: unknown;
-  /** Roher Text (gekürzt) für Heuristiken. */
+  /** Raw text (truncated) for heuristics. */
   text?: string;
   error?: string;
 }

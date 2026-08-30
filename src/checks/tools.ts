@@ -1,4 +1,4 @@
-// Tool-bezogene Checks: unauthentifizierte Tool-Auflistung/-Aufruf und Tool-Poisoning-Heuristik.
+// Tool-related checks: unauthenticated tool listing/invocation and the tool-poisoning heuristic.
 
 import type { Check, Finding, McpTool, ScanContext, SharedState } from "../types.js";
 import { initializeParams, jsonRpc, postRpc } from "../probe.js";
@@ -6,7 +6,7 @@ import { initializeParams, jsonRpc, postRpc } from "../probe.js";
 const REF_UNAUTH = "MCP Security Checklist #1";
 const REF_POISON = "MCP Security Checklist #9 Tool Poisoning";
 
-/** MCP-Handshake so weit wie nötig, um tools/list zu versuchen. */
+/** MCP handshake, only as far as needed to attempt tools/list. */
 async function listTools(
   ctx: ScanContext,
   withToken: boolean
@@ -18,19 +18,19 @@ async function listTools(
 
   const sessionId = init.headers["mcp-session-id"];
 
-  // 'initialized'-Notification (ohne id) senden — manche Server verlangen sie vor weiteren Calls.
+  // Send the 'initialized' notification (no id) — some servers require it before further calls.
   await postRpc(ctx.url, { jsonrpc: "2.0", method: "notifications/initialized", params: {} }, { timeoutMs: ctx.timeoutMs, token, sessionId });
 
   const list = await postRpc(ctx.url, jsonRpc("tools/list", {}, 2), { timeoutMs: ctx.timeoutMs, token, sessionId });
   if (list.status < 200 || list.status >= 300) return { status: list.status };
 
-  // JSON-RPC transportiert Anwendungsfehler über HTTP 200 mit 'error'-Objekt (JSON-RPC 2.0 §5.1).
-  // Ein Server, der unauthentifiziertes tools/list korrekt so ablehnt, hat NICHT geliefert —
-  // das als Erfolg zu werten war ein False Positive der höchsten Schwere.
+  // JSON-RPC carries application errors over HTTP 200 with an 'error' object (JSON-RPC 2.0 §5.1).
+  // A server that correctly refuses an unauthenticated tools/list that way has NOT delivered —
+  // reading that as success was a false positive of the highest severity.
   const body = list.json as { result?: { tools?: McpTool[] }; error?: { code?: number; message?: string } } | undefined;
   if (body?.error) return { status: list.status, rpcError: body.error };
 
-  // Kein 'result' im Body = keine verwertbare Antwort. Nicht als leere Tool-Liste ausgeben.
+  // No 'result' in the body = no usable response. Do not report it as an empty tool list.
   if (!body?.result || !Array.isArray(body.result.tools)) return { status: list.status };
 
   return { status: list.status, tools: body.result.tools };
@@ -38,67 +38,67 @@ async function listTools(
 
 export const unauthTools: Check = {
   id: "unauth-tools",
-  title: "Tool-Auflistung ohne Authentifizierung",
+  title: "Tool listing without authentication",
   async run(ctx: ScanContext, shared: SharedState): Promise<Finding[]> {
     const res = await listTools(ctx, false);
 
     if (res.tools && res.tools.length > 0) {
-      // Für spätere Checks (Poisoning) merken, wenn wir sie sonst nicht kennen.
+      // Remember them for later checks (poisoning) if we do not know them otherwise.
       if (!shared.tools) shared.tools = res.tools;
       return [{
         id: this.id, title: this.title, severity: "problem",
-        detail: `tools/list ohne Token erfolgreich (${res.tools.length} Tools sichtbar). Der Server verlangt keine Authentifizierung für die Tool-Nutzung.`,
-        remediation: "OAuth 2.1 für alle Tool-Operationen erzwingen; unauthentifizierte Requests mit 401 abweisen.",
+        detail: `tools/list without a token succeeded (${res.tools.length} tools visible). The server requires no auth for tool use.`,
+        remediation: "Enforce OAuth 2.1 for all tool operations; reject unauthenticated requests with 401.",
         reference: REF_UNAUTH,
       }];
     }
     if (res.tools) {
-      // Antwort war formal erfolgreich, enthielt aber keine Tools. Kein Auth-Befund.
+      // The response was formally successful but carried no tools. Not an auth finding.
       if (!shared.tools) shared.tools = res.tools;
       return [{
         id: this.id, title: this.title, severity: "info",
-        detail: "tools/list ohne Token liefert eine leere Tool-Liste. Kein unauthentifizierter Tool-Zugriff nachweisbar — der Server bietet hier schlicht keine Tools an.",
+        detail: "tools/list without a token returns an empty tool list. No unauthenticated tool access demonstrated — the server simply offers no tools here.",
         reference: REF_UNAUTH,
       }];
     }
     if (res.rpcError) {
-      // Ablehnung per JSON-RPC-Fehler über HTTP 200 ist spec-konform und zählt als Abweisung.
+      // A refusal via JSON-RPC error over HTTP 200 is spec-compliant and counts as a refusal.
       return [{
         id: this.id, title: this.title, severity: "pass",
-        detail: `tools/list ohne Token abgewiesen (JSON-RPC-Fehler ${res.rpcError.code ?? "?"}: ${res.rpcError.message ?? "ohne Meldung"}, HTTP ${res.status}).`,
+        detail: `tools/list without a token was refused (JSON-RPC error ${res.rpcError.code ?? "?"}: ${res.rpcError.message ?? "no message"}, HTTP ${res.status}).`,
         reference: REF_UNAUTH,
       }];
     }
     if (res.status === 401 || res.status === 403) {
       return [{
         id: this.id, title: this.title, severity: "pass",
-        detail: `tools/list ohne Token abgewiesen (HTTP ${res.status}).`,
+        detail: `tools/list without a token was refused (HTTP ${res.status}).`,
         reference: REF_UNAUTH,
       }];
     }
     return [{
       id: this.id, title: this.title, severity: "info",
-      detail: res.error ? `Konnte tools/list nicht abschließen: ${res.error}` : `tools/list ohne Token nicht erfolgreich (HTTP ${res.status}) — vermutlich Auth erforderlich, aber nicht eindeutig als 401.`,
+      detail: res.error ? `Could not complete tools/list: ${res.error}` : `tools/list without a token did not succeed (HTTP ${res.status}) — auth is probably required, but not unambiguously signalled as 401.`,
       reference: REF_UNAUTH,
     }];
   },
 };
 
 const POISON_PATTERNS: Array<{ re: RegExp; label: string }> = [
-  { re: /ignore\s+(all\s+)?previous|disregard\s+(the\s+)?above/i, label: "Instruktions-Override" },
-  { re: /<\s*(system|important|secret)\s*>/i, label: "versteckte Pseudo-Tags" },
-  { re: /\b(system\s*:|assistant\s*:)/i, label: "Rollen-Injektion" },
-  { re: /do\s+not\s+(tell|inform|mention).*(user|owner)/i, label: "Verschleierungs-Anweisung" },
-  { re: /(exfiltrat|send\s+.*to\s+https?:\/\/|curl\s+https?:\/\/)/i, label: "Exfiltrations-Hinweis" },
-  // Bewusst eng: ein Tool, das legitim ein Passwort entgegennimmt (Login, Vault, DB-Connect),
-  // ist kein Poisoning-Fund. Nur Verweise auf fremde Secret-Dateien/-Speicher zählen.
-  { re: /(\.env\b|id_rsa|~\/\.ssh|\.aws\/credentials|aws_secret_access_key|\.git-credentials)/i, label: "Secret-/Dateipfad-Referenz" },
-  { re: /[​-‏‪-‮⁠]/, label: "unsichtbare/Steuer-Unicode-Zeichen" },
+  { re: /ignore\s+(all\s+)?previous|disregard\s+(the\s+)?above/i, label: "instruction-override" },
+  { re: /<\s*(system|important|secret)\s*>/i, label: "hidden pseudo-tags" },
+  { re: /\b(system\s*:|assistant\s*:)/i, label: "role injection" },
+  { re: /do\s+not\s+(tell|inform|mention).*(user|owner)/i, label: "concealment instruction" },
+  { re: /(exfiltrat|send\s+.*to\s+https?:\/\/|curl\s+https?:\/\/)/i, label: "exfiltration hint" },
+  // Deliberately narrow: a tool that legitimately takes a password (login, vault, DB connect)
+  // is not a poisoning finding. Only references to foreign secret files or stores count.
+  { re: /(\.env\b|id_rsa|~\/\.ssh|\.aws\/credentials|aws_secret_access_key|\.git-credentials)/i, label: "secret path" },
+  { re: /[​-‏‪-‮⁠]/, label: "invisible/control unicode" },
 ];
 
 export const toolPoisoning: Check = {
   id: "tool-poisoning",
-  title: "Tool-Poisoning-Heuristik (Beschreibungen)",
+  title: "Tool poisoning heuristic",
   async run(ctx: ScanContext, shared: SharedState): Promise<Finding[]> {
     let tools = shared.tools;
     if (!tools && ctx.token) {
@@ -109,12 +109,12 @@ export const toolPoisoning: Check = {
     if (!tools) {
       return [{
         id: this.id, title: this.title, severity: "skipped",
-        detail: "Keine Tool-Liste erreichbar (Auth nötig, kein/kein gültiges Token übergeben). Für Tiefencheck --token setzen.",
+        detail: "No tool list reachable (auth required, no valid token supplied). Pass --token for the deep check.",
         reference: REF_POISON,
       }];
     }
     if (tools.length === 0) {
-      return [{ id: this.id, title: this.title, severity: "info", detail: "Server bietet 0 Tools an.", reference: REF_POISON }];
+      return [{ id: this.id, title: this.title, severity: "info", detail: "The server offers 0 tools.", reference: REF_POISON }];
     }
 
     const flagged: string[] = [];
@@ -127,14 +127,14 @@ export const toolPoisoning: Check = {
     if (flagged.length) {
       return [{
         id: this.id, title: this.title, severity: "problem",
-        detail: `Verdächtige Muster in ${flagged.length} Tool-Beschreibung(en):\n  - ${flagged.join("\n  - ")}`,
-        remediation: "Tool-Metadaten kuratieren/sanitizen; Beschreibungen versionieren (Rug-Pull-Schutz); untrusted content markieren.",
+        detail: `Suspicious patterns in ${flagged.length} tool description(s):\n  - ${flagged.join("\n  - ")}`,
+        remediation: "Curate and sanitise tool metadata; version descriptions (rug-pull protection); mark untrusted content.",
         reference: REF_POISON,
       }];
     }
     return [{
       id: this.id, title: this.title, severity: "pass",
-      detail: `${tools.length} Tool-Beschreibungen geprüft, keine verdächtigen Injektions-Muster gefunden.`,
+      detail: `Checked ${tools.length} tool descriptions, found no suspicious injection patterns.`,
       reference: REF_POISON,
     }];
   },
